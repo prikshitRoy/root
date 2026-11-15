@@ -1,0 +1,10 @@
+# Rust build output
+/target/
+**/*.rs.bk
+
+# Local environment and OS/editor files
+.env
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
