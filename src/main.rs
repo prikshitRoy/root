@@ -1,7 +1,9 @@
 //! Entry point for the `root` desktop application.
 
 pub mod detector;
+pub mod markdown;
 pub mod scanner;
+pub mod selection;
 pub mod ui;
 
 use eframe::egui;

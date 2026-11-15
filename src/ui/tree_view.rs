@@ -3,6 +3,7 @@
 use eframe::egui;
 
 use crate::scanner::{FileCategory, FileNode};
+use crate::selection::{ExportMode, SelectionState};
 
 /// Byte threshold for displaying file sizes in kilobytes.
 const BYTES_PER_KB: u64 = 1024;
@@ -10,11 +11,18 @@ const BYTES_PER_KB: u64 = 1024;
 /// Byte threshold for displaying file sizes in megabytes.
 const BYTES_PER_MB: u64 = 1024 * 1024;
 
-/// Renders the project header path and scrollable recursive directory tree.
-pub fn render_project_tree(ui: &mut egui::Ui, root_node: &FileNode) {
-    ui.horizontal(|ui| {
+/// Renders the project header path, included file count, and scrollable recursive directory tree.
+pub fn render_project_tree(
+    ui: &mut egui::Ui,
+    root_node: &FileNode,
+    selection: &mut SelectionState,
+) {
+    ui.horizontal_wrapped(|ui| {
         ui.heading(&root_node.name);
         ui.weak(format!("({})", root_node.full_path.display()));
+        ui.separator();
+        let included_count = selection.count_included_files(root_node);
+        ui.label(format!("Files included in .md code bundle: {included_count}"));
     });
     ui.separator();
 
@@ -22,34 +30,54 @@ pub fn render_project_tree(ui: &mut egui::Ui, root_node: &FileNode) {
         .auto_shrink([false, false])
         .show(ui, |ui| {
             for child in &root_node.children {
-                render_tree_node(ui, child, 0);
+                render_tree_node(ui, child, selection, 0);
             }
         });
 }
 
-/// Recursively renders a directory as a collapsible header or a file as a single row.
-fn render_tree_node(ui: &mut egui::Ui, node: &FileNode, depth: usize) {
+/// Recursively renders a directory with a cascading checkbox or a file row.
+fn render_tree_node(
+    ui: &mut egui::Ui,
+    node: &FileNode,
+    selection: &mut SelectionState,
+    depth: usize,
+) {
     if node.is_dir {
-        // Auto-expand root-level folders so the user sees immediate context on load
         let is_default_open = depth == 0;
-        let folder_label = format!("📁 {}", node.name);
-
-        egui::CollapsingHeader::new(folder_label)
-            .id_salt(&node.relative_path)
-            .default_open(is_default_open)
-            .show(ui, |ui| {
-                for child in &node.children {
-                    render_tree_node(ui, child, depth + 1);
+        ui.horizontal(|ui| {
+            if selection.export_mode == ExportMode::SelectedCode {
+                let mut is_dir_checked = selection.is_directory_checked(node);
+                if ui.checkbox(&mut is_dir_checked, "").changed() {
+                    selection.set_directory_checked(node, is_dir_checked);
                 }
-            });
+            }
+
+            let folder_label = format!("📁 {}", node.name);
+            egui::CollapsingHeader::new(folder_label)
+                .id_salt(&node.relative_path)
+                .default_open(is_default_open)
+                .show(ui, |ui| {
+                    for child in &node.children {
+                        render_tree_node(ui, child, selection, depth + 1);
+                    }
+                });
+        });
     } else {
-        render_file_row(ui, node);
+        render_file_row(ui, node, selection);
     }
 }
 
-/// Renders a single file entry with its size and optional binary/lockfile badge.
-fn render_file_row(ui: &mut egui::Ui, node: &FileNode) {
+/// Renders a single file entry with its selection checkbox, size, and optional category badge.
+fn render_file_row(ui: &mut egui::Ui, node: &FileNode, selection: &mut SelectionState) {
     ui.horizontal(|ui| {
+        if selection.export_mode == ExportMode::SelectedCode && node.category != FileCategory::Binary
+        {
+            let mut is_checked = selection.is_path_checked(&node.relative_path);
+            if ui.checkbox(&mut is_checked, "").changed() {
+                selection.set_file_checked(node.relative_path.clone(), is_checked);
+            }
+        }
+
         ui.label(format!("📄 {}", node.name));
         ui.weak(format_byte_size(node.size_bytes));
 
