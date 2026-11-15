@@ -1,6 +1,7 @@
-//! Scrollable collapsible tree view with summary statistics and live search filtering.
+//! Scrollable collapsible tree view with interactive checkboxes, summary stats, and search filtering.
 
 use eframe::egui;
+use eframe::egui::collapsing_header::CollapsingState;
 
 use crate::scanner::{FileCategory, FileNode};
 use crate::selection::{ExportMode, SelectionState};
@@ -19,7 +20,7 @@ pub struct TreeSummary {
     pub included_bytes: u64,
 }
 
-/// Renders the project header card, summary statistics pills, and filtered directory tree.
+/// Renders the project header card, summary statistics pills, and interactive directory tree.
 pub fn render_project_tree(
     ui: &mut egui::Ui,
     root_node: &FileNode,
@@ -41,7 +42,7 @@ pub fn render_project_tree(
             for child in &root_node.children {
                 if node_matches_query(child, &normalized_query) {
                     has_any_match = true;
-                    render_tree_node(ui, child, selection, &normalized_query, 0);
+                    render_tree_node(ui, root_node, child, selection, &normalized_query, 0);
                 }
             }
 
@@ -77,51 +78,64 @@ fn render_summary_header(
     });
 }
 
-/// Recursively renders a directory with a cascading checkbox or a file row.
+/// Recursively renders a directory with a unique ID and `CollapsingState` or a file row.
 fn render_tree_node(
     ui: &mut egui::Ui,
+    root_node: &FileNode,
     node: &FileNode,
     selection: &mut SelectionState,
     normalized_query: &str,
     depth: usize,
 ) {
-    if node.is_dir {
-        // Auto-expand folders at the root or whenever a search query is active
-        let is_default_open = depth == 0 || !normalized_query.is_empty();
-        ui.horizontal(|ui| {
-            if selection.export_mode == ExportMode::SelectedCode {
-                let mut is_dir_checked = selection.is_directory_checked(node);
-                if ui.checkbox(&mut is_dir_checked, "").changed() {
-                    selection.set_directory_checked(node, is_dir_checked);
-                }
-            }
+    // Push unique ID per relative path so checkboxes never collide across rows
+    ui.push_id(&node.relative_path, |ui| {
+        if node.is_dir {
+            let is_default_open = depth == 0 || !normalized_query.is_empty();
+            let header_id = ui.make_persistent_id("folder_header");
 
-            let folder_label = format!("📁 {} ({})", node.name, node.children.len());
-            egui::CollapsingHeader::new(folder_label)
-                .id_salt(&node.relative_path)
-                .default_open(is_default_open)
-                .show(ui, |ui| {
+            CollapsingState::load_with_default_open(ui.ctx(), header_id, is_default_open)
+                .show_header(ui, |ui| {
+                    let mut is_dir_checked = is_directory_checked_in_ui(node, selection);
+                    if ui.checkbox(&mut is_dir_checked, "").changed() {
+                        apply_directory_toggle_from_ui(root_node, node, selection, is_dir_checked);
+                    }
+                    ui.label(format!("📁 {} ({})", node.name, node.children.len()));
+                })
+                .body(|ui| {
                     for child in &node.children {
                         if node_matches_query(child, normalized_query) {
-                            render_tree_node(ui, child, selection, normalized_query, depth + 1);
+                            render_tree_node(
+                                ui,
+                                root_node,
+                                child,
+                                selection,
+                                normalized_query,
+                                depth + 1,
+                            );
                         }
                     }
                 });
-        });
-    } else {
-        render_file_row(ui, node, selection);
-    }
+        } else {
+            render_file_row(ui, root_node, node, selection);
+        }
+    });
 }
 
 /// Renders a single file entry with its selection checkbox, size, and optional category badge.
-fn render_file_row(ui: &mut egui::Ui, node: &FileNode, selection: &mut SelectionState) {
+fn render_file_row(
+    ui: &mut egui::Ui,
+    root_node: &FileNode,
+    node: &FileNode,
+    selection: &mut SelectionState,
+) {
     ui.horizontal(|ui| {
-        if selection.export_mode == ExportMode::SelectedCode
-            && node.category != FileCategory::Binary
-        {
-            let mut is_checked = selection.is_path_checked(&node.relative_path);
+        if node.category == FileCategory::Binary {
+            let mut disabled_checked = false;
+            ui.add_enabled(false, egui::Checkbox::new(&mut disabled_checked, ""));
+        } else {
+            let mut is_checked = selection.is_file_included(node);
             if ui.checkbox(&mut is_checked, "").changed() {
-                selection.set_file_checked(node.relative_path.clone(), is_checked);
+                apply_file_toggle_from_ui(root_node, node, selection, is_checked);
             }
         }
 
@@ -132,6 +146,58 @@ fn render_file_row(ui: &mut egui::Ui, node: &FileNode, selection: &mut Selection
             ui.small(badge);
         }
     });
+}
+
+/// Returns whether a directory checkbox should display as checked under the current `ExportMode`.
+pub fn is_directory_checked_in_ui(dir_node: &FileNode, selection: &SelectionState) -> bool {
+    match selection.export_mode {
+        ExportMode::TreeOnly => false,
+        ExportMode::AllCode => dir_node.children.iter().any(|c| {
+            if c.is_dir {
+                is_directory_checked_in_ui(c, selection)
+            } else {
+                c.category == FileCategory::TextCode
+            }
+        }),
+        ExportMode::SelectedCode => selection.is_directory_checked(dir_node),
+    }
+}
+
+/// Ensures `selection` is in `SelectedCode` mode and toggles all files inside `dir_node`.
+pub fn apply_directory_toggle_from_ui(
+    root_node: &FileNode,
+    dir_node: &FileNode,
+    selection: &mut SelectionState,
+    should_check: bool,
+) {
+    sync_selection_set_before_manual_toggle(root_node, selection);
+    selection.set_directory_checked(dir_node, should_check);
+}
+
+/// Ensures `selection` is in `SelectedCode` mode and toggles `file_node`.
+pub fn apply_file_toggle_from_ui(
+    root_node: &FileNode,
+    file_node: &FileNode,
+    selection: &mut SelectionState,
+    should_check: bool,
+) {
+    sync_selection_set_before_manual_toggle(root_node, selection);
+    selection.set_file_checked(file_node.relative_path.clone(), should_check);
+}
+
+/// Transitions `AllCode` or `TreeOnly` into `SelectedCode` before applying a manual checkbox click.
+fn sync_selection_set_before_manual_toggle(root_node: &FileNode, selection: &mut SelectionState) {
+    match selection.export_mode {
+        ExportMode::AllCode => {
+            selection.select_all_text_files(root_node);
+            selection.export_mode = ExportMode::SelectedCode;
+        }
+        ExportMode::TreeOnly => {
+            selection.clear_all();
+            selection.export_mode = ExportMode::SelectedCode;
+        }
+        ExportMode::SelectedCode => {}
+    }
 }
 
 /// Returns `true` if `node` or any of its descendants match `normalized_query` (lowercase).
@@ -156,11 +222,7 @@ pub fn compute_tree_summary(root_node: &FileNode, selection: &SelectionState) ->
     summary
 }
 
-fn accumulate_summary(
-    node: &FileNode,
-    selection: &SelectionState,
-    summary: &mut TreeSummary,
-) {
+fn accumulate_summary(node: &FileNode, selection: &SelectionState, summary: &mut TreeSummary) {
     for child in &node.children {
         if child.is_dir {
             summary.total_dirs += 1;
@@ -198,8 +260,12 @@ pub fn category_badge(category: FileCategory) -> Option<&'static str> {
 mod tests {
     use std::path::PathBuf;
 
-    use super::{category_badge, format_byte_size, node_matches_query};
+    use super::{
+        apply_directory_toggle_from_ui, apply_file_toggle_from_ui, category_badge,
+        format_byte_size, node_matches_query,
+    };
     use crate::scanner::{FileCategory, FileNode};
+    use crate::selection::{ExportMode, SelectionState};
 
     #[test]
     fn formats_bytes_below_one_kilobyte_as_raw_bytes() {
@@ -224,7 +290,6 @@ mod tests {
 
     #[test]
     fn matches_directory_when_nested_child_matches_search_query() {
-        // Arrange
         let folder = FileNode {
             name: "components".to_string(),
             relative_path: PathBuf::from("src/components"),
@@ -243,8 +308,55 @@ mod tests {
             }],
         };
 
-        // Act & Assert
         assert!(node_matches_query(&folder, "navbar"));
         assert!(!node_matches_query(&folder, "footer"));
+    }
+
+    #[test]
+    fn switches_to_selected_code_mode_when_toggling_file_or_folder_in_ui() {
+        // Arrange
+        let file_a = FileNode {
+            name: "a.rs".to_string(),
+            relative_path: PathBuf::from("src/a.rs"),
+            full_path: PathBuf::from("/app/src/a.rs"),
+            is_dir: false,
+            size_bytes: 100,
+            category: FileCategory::TextCode,
+            children: Vec::new(),
+        };
+        let src_dir = FileNode {
+            name: "src".to_string(),
+            relative_path: PathBuf::from("src"),
+            full_path: PathBuf::from("/app/src"),
+            is_dir: true,
+            size_bytes: 0,
+            category: FileCategory::TextCode,
+            children: vec![file_a.clone()],
+        };
+        let root = FileNode {
+            name: "app".to_string(),
+            relative_path: PathBuf::new(),
+            full_path: PathBuf::from("/app"),
+            is_dir: true,
+            size_bytes: 0,
+            category: FileCategory::TextCode,
+            children: vec![src_dir.clone()],
+        };
+
+        let mut selection = SelectionState::from_tree(&root);
+        selection.export_mode = ExportMode::TreeOnly;
+
+        // Act: user clicks the file checkbox while in TreeOnly mode
+        apply_file_toggle_from_ui(&root, &file_a, &mut selection, true);
+
+        // Assert: mode switches to SelectedCode and the file is included
+        assert_eq!(selection.export_mode, ExportMode::SelectedCode);
+        assert!(selection.is_file_included(&file_a));
+
+        // Act: user unchecks the parent folder in UI
+        apply_directory_toggle_from_ui(&root, &src_dir, &mut selection, false);
+
+        // Assert
+        assert!(!selection.is_file_included(&file_a));
     }
 }

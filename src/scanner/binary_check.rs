@@ -62,7 +62,27 @@ pub fn has_binary_extension(path: &Path) -> bool {
         .any(|&binary_ext| binary_ext.eq_ignore_ascii_case(ext))
 }
 
+/// Source and config extensions that are guaranteed to be text without reading 512 header bytes.
+const KNOWN_TEXT_EXTENSIONS: &[&str] = &[
+    "rs", "ts", "tsx", "js", "jsx", "mjs", "cjs", "mts", "cts", "json", "jsonc", "toml", "yaml",
+    "yml", "md", "mdx", "txt", "html", "htm", "css", "scss", "sass", "less", "svg", "xml", "py",
+    "go", "c", "h", "cpp", "hpp", "cc", "java", "kt", "swift", "rb", "php", "sh", "bash", "zsh",
+    "ps1", "bat", "cmd", "sql", "graphql", "prisma", "env", "ini", "conf", "vue", "svelte",
+    "astro",
+];
+
 /// Returns `true` if the inspected byte slice contains at least one null byte (`0x00`).
 pub fn contains_null_byte(sample: &[u8]) -> bool {
     sample.contains(&NULL_BYTE)
+}
+
+/// Returns `true` if the file has a standard source code or text configuration extension.
+pub fn has_known_text_extension(path: &Path) -> bool {
+    let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
+        return false;
+    };
+
+    KNOWN_TEXT_EXTENSIONS
+        .iter()
+        .any(|&text_ext| text_ext.eq_ignore_ascii_case(ext))
 }

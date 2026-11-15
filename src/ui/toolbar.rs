@@ -40,6 +40,9 @@ pub struct ToolbarState<'a> {
     pub is_dark_mode: bool,
     pub zoom_factor: f32,
     pub has_loaded_project: bool,
+    pub is_all_code_selected: bool,
+    pub is_no_code_selected: bool,
+    pub is_scan_running: bool,
     pub is_export_running: bool,
 }
 
@@ -51,7 +54,7 @@ pub fn render_top_toolbar(ctx: &egui::Context, mut state: ToolbarState<'_>) -> T
         ui.add_space(6.0);
         render_primary_row(ui, &mut state, &mut triggered_action);
 
-        if state.has_loaded_project {
+        if state.has_loaded_project && !state.is_scan_running {
             ui.separator();
             render_project_controls_row(ui, state, &mut triggered_action);
         }
@@ -61,7 +64,7 @@ pub fn render_top_toolbar(ctx: &egui::Context, mut state: ToolbarState<'_>) -> T
     triggered_action
 }
 
-/// Renders the top row with app branding, folder picker, rescan, dotfile checkbox, zoom, and theme.
+/// Renders the top row with app branding, folder picker, rescan, dotfile checkbox, and theme button.
 fn render_primary_row(
     ui: &mut egui::Ui,
     state: &mut ToolbarState<'_>,
@@ -71,12 +74,16 @@ fn render_primary_row(
         ui.heading("🌿 root");
         ui.separator();
 
-        if ui.button("📂 Open Project Folder...").clicked() {
+        let open_btn = egui::Button::new("📂 Open Project Folder...");
+        if ui.add_enabled(!state.is_scan_running, open_btn).clicked() {
             *triggered_action = ToolbarAction::OpenFolder;
         }
 
-        if state.has_loaded_project && ui.button("🔄 Rescan").clicked() {
-            *triggered_action = ToolbarAction::Rescan;
+        if state.has_loaded_project {
+            let rescan_btn = egui::Button::new("🔄 Rescan");
+            if ui.add_enabled(!state.is_scan_running, rescan_btn).clicked() {
+                *triggered_action = ToolbarAction::Rescan;
+            }
         }
 
         let dotfile_toggle = ui.checkbox(state.should_include_hidden, "Include dotfiles");
@@ -151,13 +158,33 @@ fn render_project_controls_row(
                 }
             });
 
-        if *state.export_mode == ExportMode::SelectedCode {
-            if ui.button("☑ All Code").clicked() {
-                *triggered_action = ToolbarAction::SelectAllFiles;
-            }
-            if ui.button("☐ None").clicked() {
-                *triggered_action = ToolbarAction::ClearSelection;
-            }
+        if ui
+            .button("☑ All Code")
+            .on_hover_text("Check all non-binary source files in the tree")
+            .clicked()
+        {
+            *triggered_action = ToolbarAction::SelectAllFiles;
+        }
+
+        // Dynamically switch between ☑ and ☐ and highlight whichever preset is active
+        let all_code_label = format_toggle_button_label("All Code", state.is_all_code_selected);
+        let all_code_btn = egui::Button::new(all_code_label).selected(state.is_all_code_selected);
+        if ui
+            .add(all_code_btn)
+            .on_hover_text("Check all non-binary source files in the tree")
+            .clicked()
+        {
+            *triggered_action = ToolbarAction::SelectAllFiles;
+        }
+
+        let none_label = format_toggle_button_label("None", state.is_no_code_selected);
+        let none_btn = egui::Button::new(none_label).selected(state.is_no_code_selected);
+        if ui
+            .add(none_btn)
+            .on_hover_text("Uncheck all files in the tree")
+            .clicked()
+        {
+            *triggered_action = ToolbarAction::ClearSelection;
         }
 
         ui.separator();
@@ -175,4 +202,24 @@ fn render_project_controls_row(
             *triggered_action = ToolbarAction::ExportMarkdown;
         }
     });
+}
+
+/// Formats a toolbar toggle button label with a checked (`☑`) or unchecked (`☐`) icon prefix.
+pub fn format_toggle_button_label(title: &str, is_checked: bool) -> String {
+    let icon = if is_checked { "☑" } else { "☐" };
+    format!("{icon} {title}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_toggle_button_label;
+
+    #[test]
+    fn formats_toolbar_toggle_labels_with_matching_checkmark_icon() {
+        // Arrange & Act & Assert
+        assert_eq!(format_toggle_button_label("All Code", true), "☑ All Code");
+        assert_eq!(format_toggle_button_label("All Code", false), "☐ All Code");
+        assert_eq!(format_toggle_button_label("None", true), "☑ None");
+        assert_eq!(format_toggle_button_label("None", false), "☐ None");
+    }
 }

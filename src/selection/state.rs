@@ -123,6 +123,26 @@ impl SelectionState {
             .sum()
     }
 
+    /// Counts the total number of selectable `TextCode` files in `root`.
+    pub fn count_total_text_files(root: &FileNode) -> usize {
+        if !root.is_dir {
+            return usize::from(root.category == FileCategory::TextCode);
+        }
+
+        root.children.iter().map(Self::count_total_text_files).sum()
+    }
+
+    /// Returns `true` when every selectable `TextCode` file in `root` is currently included.
+    pub fn is_all_code_selected(&self, root: &FileNode) -> bool {
+        let total_text_files = Self::count_total_text_files(root);
+        total_text_files > 0 && self.count_included_files(root) == total_text_files
+    }
+
+    /// Returns `true` when zero files in `root` are currently included.
+    pub fn is_no_code_selected(&self, root: &FileNode) -> bool {
+        self.count_included_files(root) == 0
+    }
+
     /// Helper that walks `node` and inserts all `TextCode` relative paths.
     fn collect_text_files_recursively(&mut self, node: &FileNode) {
         for child in &node.children {

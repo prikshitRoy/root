@@ -1,5 +1,6 @@
 //! Top-level UI state and panel orchestration for the `root` desktop app.
 
+mod loading_view;
 mod preview_pane;
 mod project_banner;
 mod status_bar;
@@ -13,9 +14,10 @@ use eframe::egui;
 
 use crate::detector::{detect_project_profile, ProjectKind, ProjectProfile};
 use crate::markdown::{build_markdown_document, spawn_export_job, ExportJobHandle, ExportState};
-use crate::scanner::{scan_directory, FileNode, ScanOptions};
-use crate::selection::SelectionState;
+use crate::scanner::{spawn_scan_job, FileNode, ScanJobHandle, ScanOptions, ScanState};
+use crate::selection::{ExportMode, SelectionState};
 use crate::settings::{load_app_settings, save_app_settings, AppSettings};
+use loading_view::render_project_loading_view;
 use preview_pane::render_markdown_preview_panel;
 use project_banner::render_project_banner;
 use status_bar::render_bottom_status_bar;
@@ -23,7 +25,7 @@ use theme::{apply_app_theme, step_zoom_in, step_zoom_out, DEFAULT_ZOOM_FACTOR};
 use toolbar::{render_top_toolbar, ToolbarAction, ToolbarState};
 use tree_view::render_project_tree;
 
-/// Stateful container for the currently loaded project, export job, and UI preferences.
+/// Stateful container for the currently loaded project, background jobs, and UI preferences.
 pub struct RootApp {
     /// Path to the currently selected software project folder.
     selected_root: Option<PathBuf>,
@@ -41,6 +43,12 @@ pub struct RootApp {
     is_dark_mode: bool,
     /// Current UI scale factor (`1.0` = 100%).
     zoom_factor: f32,
+    /// Handle to an active background directory scan job, if a project is currently loading.
+    active_scan_job: Option<ScanJobHandle>,
+    /// Number of entries discovered so far by the active directory scan job.
+    scan_entries_count: usize,
+    /// Relative path currently being inspected by the active directory scan job.
+    scan_current_path: String,
     /// Handle to an active background `.md` export job, if one is running.
     active_export_job: Option<ExportJobHandle>,
     /// Latest progress state received from the background export worker.
@@ -55,7 +63,6 @@ pub struct RootApp {
 
 impl Default for RootApp {
     fn default() -> Self {
-        // Load persisted theme and zoom preferences from disk on startup
         let saved_settings = load_app_settings();
 
         Self {
@@ -67,6 +74,9 @@ impl Default for RootApp {
             should_show_preview: false,
             is_dark_mode: saved_settings.is_dark_mode,
             zoom_factor: saved_settings.zoom_factor,
+            active_scan_job: None,
+            scan_entries_count: 0,
+            scan_current_path: String::new(),
             active_export_job: None,
             export_state: None,
             status_message: None,
@@ -77,34 +87,61 @@ impl Default for RootApp {
 }
 
 impl RootApp {
-    /// Opens the native OS folder dialog and scans the chosen directory.
+    /// Opens the native OS folder dialog and starts a background scan for the chosen directory.
     fn pick_and_scan_folder(&mut self) {
         if let Some(folder_path) = rfd::FileDialog::new().pick_folder() {
             self.selected_root = Some(folder_path);
-            self.rescan_current_folder();
+            self.start_project_scan_job();
         }
     }
 
-    /// Re-runs the ignore-aware directory scanner and framework detector on the current root path.
-    fn rescan_current_folder(&mut self) {
+    /// Spawns a non-blocking background directory scan job for `self.selected_root`.
+    fn start_project_scan_job(&mut self) {
         let Some(root_path) = &self.selected_root else {
             return;
         };
 
-        match scan_directory(root_path, &self.scan_options) {
-            Ok(tree) => {
-                self.project_profile = Some(detect_project_profile(&tree));
-                self.selection = SelectionState::from_tree(&tree);
-                self.scanned_tree = Some(tree);
-                self.export_state = None;
-                self.error_message = None;
-                self.status_message = Some("Project scanned.".to_string());
+        self.scan_entries_count = 0;
+        self.scan_current_path = "Starting scan...".to_string();
+        self.error_message = None;
+        self.export_state = None;
+        self.status_message = Some("Scanning project directory...".to_string());
+
+        self.active_scan_job = Some(spawn_scan_job(root_path.clone(), self.scan_options.clone()));
+    }
+
+    /// Polls the background directory scan worker and updates loading progress or finishes loading.
+    fn poll_scan_progress(&mut self, ctx: &egui::Context) {
+        let Some(job) = &self.active_scan_job else {
+            return;
+        };
+
+        if let Some(state) = job.poll_latest() {
+            match state {
+                ScanState::Running {
+                    entries_scanned,
+                    current_path,
+                } => {
+                    self.scan_entries_count = entries_scanned;
+                    self.scan_current_path = current_path;
+                    ctx.request_repaint();
+                }
+                ScanState::Completed(tree) => {
+                    self.project_profile = Some(detect_project_profile(&tree));
+                    self.selection = SelectionState::from_tree(&tree);
+                    self.scanned_tree = Some(tree);
+                    self.active_scan_job = None;
+                    self.status_message = Some("Project loaded.".to_string());
+                }
+                ScanState::Failed(err) => {
+                    self.scanned_tree = None;
+                    self.project_profile = None;
+                    self.active_scan_job = None;
+                    self.error_message = Some(err.to_string());
+                }
             }
-            Err(err) => {
-                self.scanned_tree = None;
-                self.project_profile = None;
-                self.error_message = Some(err.to_string());
-            }
+        } else {
+            ctx.request_repaint();
         }
     }
 
@@ -191,7 +228,15 @@ impl eframe::App for RootApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.handle_zoom_shortcuts(ctx);
         apply_app_theme(ctx, self.is_dark_mode, self.zoom_factor);
+        self.poll_scan_progress(ctx);
         self.poll_export_progress(ctx);
+        let (is_all_code_selected, is_no_code_selected) =
+            self.scanned_tree.as_ref().map_or((false, false), |tree| {
+                (
+                    self.selection.is_all_code_selected(tree),
+                    self.selection.is_no_code_selected(tree),
+                )
+            });
 
         let action = render_top_toolbar(
             ctx,
@@ -203,19 +248,26 @@ impl eframe::App for RootApp {
                 is_dark_mode: self.is_dark_mode,
                 zoom_factor: self.zoom_factor,
                 has_loaded_project: self.selected_root.is_some(),
+                is_all_code_selected,
+                is_no_code_selected,
+                is_scan_running: self.active_scan_job.is_some(),
                 is_export_running: self.active_export_job.is_some(),
             },
         );
 
         match action {
             ToolbarAction::OpenFolder => self.pick_and_scan_folder(),
-            ToolbarAction::Rescan => self.rescan_current_folder(),
+            ToolbarAction::Rescan => self.start_project_scan_job(),
             ToolbarAction::SelectAllFiles => {
                 if let Some(tree) = &self.scanned_tree {
+                    self.selection.export_mode = ExportMode::SelectedCode;
                     self.selection.select_all_text_files(tree);
                 }
             }
-            ToolbarAction::ClearSelection => self.selection.clear_all(),
+            ToolbarAction::ClearSelection => {
+                self.selection.export_mode = ExportMode::SelectedCode;
+                self.selection.clear_all();
+            }
             ToolbarAction::CopyMarkdown => self.copy_markdown_to_clipboard(ctx),
             ToolbarAction::ExportMarkdown => self.start_export_markdown_job(),
             ToolbarAction::ToggleTheme => {
@@ -244,7 +296,7 @@ impl eframe::App for RootApp {
             &self.error_message,
         );
 
-        if self.should_show_preview {
+        if self.should_show_preview && self.active_scan_job.is_none() {
             if let Some(tree) = &self.scanned_tree {
                 render_markdown_preview_panel(
                     ctx,
@@ -257,6 +309,16 @@ impl eframe::App for RootApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
+            if self.active_scan_job.is_some() {
+                render_project_loading_view(
+                    ui,
+                    self.selected_root.as_deref(),
+                    self.scan_entries_count,
+                    &self.scan_current_path,
+                );
+                return;
+            }
+
             if let Some(profile) = &mut self.project_profile {
                 render_project_banner(ui, profile);
                 ui.add_space(6.0);

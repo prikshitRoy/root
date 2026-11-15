@@ -98,3 +98,28 @@ fn respects_tree_only_and_all_code_export_modes() {
     state.export_mode = ExportMode::AllCode;
     assert_eq!(state.count_included_files(&root), 2);
 }
+
+#[test]
+fn reports_all_code_and_no_code_selection_flags_accurately() {
+    // Arrange
+    let root = sample_project_tree();
+    let mut state = SelectionState::from_tree(&root);
+
+    // Assert initial state (all text files selected)
+    assert!(state.is_all_code_selected(&root));
+    assert!(!state.is_no_code_selected(&root));
+
+    // Act: clear all files ("None" clicked)
+    state.clear_all();
+
+    // Assert None state
+    assert!(!state.is_all_code_selected(&root));
+    assert!(state.is_no_code_selected(&root));
+
+    // Act: select only one of the two text files (partial selection)
+    state.set_file_checked(PathBuf::from("src/main.rs"), true);
+
+    // Assert partial selection state
+    assert!(!state.is_all_code_selected(&root));
+    assert!(!state.is_no_code_selected(&root));
+}

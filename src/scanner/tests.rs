@@ -5,9 +5,7 @@ use std::path::Path;
 
 use tempfile::TempDir;
 
-use crate::scanner::{
-    classify_file, scan_directory, FileCategory, ScanError, ScanOptions,
-};
+use crate::scanner::{classify_file, scan_directory, FileCategory, ScanError, ScanOptions};
 
 /// Helper to create a file and any missing parent directories inside a temporary test directory.
 fn write_test_file(root: &Path, relative_path: &str, contents: &[u8]) {
@@ -53,7 +51,11 @@ fn excludes_entries_matching_gitignore_and_ignore_files() {
     let temp = TempDir::new().unwrap();
     write_test_file(temp.path(), ".gitignore", b"node_modules/\n*.log\n");
     write_test_file(temp.path(), ".ignore", b"dist/\n");
-    write_test_file(temp.path(), "node_modules/pkg/index.js", b"module.exports = {};");
+    write_test_file(
+        temp.path(),
+        "node_modules/pkg/index.js",
+        b"module.exports = {};",
+    );
     write_test_file(temp.path(), "dist/bundle.js", b"console.log(1);");
     write_test_file(temp.path(), "debug.log", b"error trace");
     write_test_file(temp.path(), "src/main.rs", b"fn main() {}");
@@ -136,4 +138,28 @@ fn classifies_file_with_null_byte_in_header_as_binary() {
 
     // Assert
     assert_eq!(category, FileCategory::Binary);
+}
+
+#[test]
+fn completes_background_scan_job_and_returns_filtered_tree() {
+    // Arrange
+    let temp = TempDir::new().unwrap();
+    write_test_file(temp.path(), "src/main.rs", b"fn main() {}");
+    write_test_file(temp.path(), "Cargo.toml", b"[package]");
+
+    // Act
+    let handle = crate::scanner::spawn_scan_job(temp.path().to_path_buf(), ScanOptions::default());
+
+    let mut completed_tree = None;
+    for _ in 0..200 {
+        if let Some(crate::scanner::ScanState::Completed(tree)) = handle.poll_latest() {
+            completed_tree = Some(tree);
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+
+    // Assert
+    let tree = completed_tree.expect("background scan job should complete");
+    assert_eq!(tree.children.len(), 2);
 }

@@ -6,12 +6,13 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use crate::scanner::binary_check::{
+    classify_file, has_binary_extension, has_known_text_extension, is_heavy_lockfile,
+};
+use crate::scanner::types::{FileCategory, FileNode, ScanError, ScanOptions};
 use ignore::{DirEntry, WalkBuilder};
 
-use crate::scanner::binary_check::classify_file;
-use crate::scanner::types::{FileCategory, FileNode, ScanError, ScanOptions};
-
-/// Number of initial bytes inspected from a file to detect null bytes.
+/// Number of initial bytes inspected from an unknown file to detect null bytes.
 const BINARY_SNIFF_BYTES: usize = 512;
 
 /// Version control metadata directory excluded from project trees even when hidden files are shown.
@@ -19,9 +20,21 @@ const VCS_DIR_NAME: &str = ".git";
 
 /// Scans `root_path` respecting `.gitignore` and `.ignore` files and returns the root `FileNode`.
 pub fn scan_directory(root_path: &Path, options: &ScanOptions) -> Result<FileNode, ScanError> {
+    scan_directory_with_progress(root_path, options, |_, _| {})
+}
+
+/// Scans `root_path` while invoking `on_progress(entries_scanned, relative_path)` for live UI updates.
+pub fn scan_directory_with_progress<F>(
+    root_path: &Path,
+    options: &ScanOptions,
+    mut on_progress: F,
+) -> Result<FileNode, ScanError>
+where
+    F: FnMut(usize, &Path),
+{
     validate_root_directory(root_path)?;
 
-    let nodes_by_path = collect_filtered_nodes(root_path, options)?;
+    let nodes_by_path = collect_filtered_nodes(root_path, options, &mut on_progress)?;
     let mut root_node = assemble_hierarchy(root_path, nodes_by_path)?;
     sort_children_recursively(&mut root_node);
 
@@ -40,10 +53,14 @@ fn validate_root_directory(root_path: &Path) -> Result<(), ScanError> {
 }
 
 /// Walks the directory tree with `ignore` and collects a map of relative paths to `FileNode`s.
-fn collect_filtered_nodes(
+fn collect_filtered_nodes<F>(
     root_path: &Path,
     options: &ScanOptions,
-) -> Result<BTreeMap<PathBuf, FileNode>, ScanError> {
+    on_progress: &mut F,
+) -> Result<BTreeMap<PathBuf, FileNode>, ScanError>
+where
+    F: FnMut(usize, &Path),
+{
     let walker = WalkBuilder::new(root_path)
         .hidden(!options.should_include_hidden)
         .git_ignore(true)
@@ -55,6 +72,7 @@ fn collect_filtered_nodes(
         .build();
 
     let mut nodes_by_path = BTreeMap::new();
+    let mut scanned_count = 0;
 
     for result in walker {
         let entry = result.map_err(|err| ScanError::TraversalFailed {
@@ -63,6 +81,8 @@ fn collect_filtered_nodes(
         })?;
 
         let node = build_node_from_entry(root_path, &entry)?;
+        scanned_count += 1;
+        on_progress(scanned_count, &node.relative_path);
         nodes_by_path.insert(node.relative_path.clone(), node);
     }
 
@@ -112,8 +132,23 @@ fn build_node_from_entry(root_path: &Path, entry: &DirEntry) -> Result<FileNode,
     })
 }
 
-/// Reads up to `BINARY_SNIFF_BYTES` from a file to classify it as text, lockfile, or binary.
+/// Classifies a file by its name/extension first, reading 512 bytes from disk only when unknown.
 fn inspect_file_category(full_path: &Path) -> FileCategory {
+    let file_name = full_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+
+    if is_heavy_lockfile(file_name) {
+        return FileCategory::Lockfile;
+    }
+    if has_binary_extension(full_path) {
+        return FileCategory::Binary;
+    }
+    if has_known_text_extension(full_path) {
+        return FileCategory::TextCode;
+    }
+
     let mut buffer = [0_u8; BINARY_SNIFF_BYTES];
     let bytes_read = File::open(full_path)
         .and_then(|mut file| file.read(&mut buffer))
