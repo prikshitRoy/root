@@ -1,5 +1,6 @@
 //! Top-level UI state and panel orchestration for the `root` desktop app.
 
+mod project_banner;
 mod toolbar;
 mod tree_view;
 
@@ -7,7 +8,9 @@ use std::path::PathBuf;
 
 use eframe::egui;
 
+use crate::detector::{detect_project_profile, ProjectProfile};
 use crate::scanner::{scan_directory, FileNode, ScanOptions};
+use project_banner::render_project_banner;
 use toolbar::{render_top_toolbar, ToolbarAction};
 use tree_view::render_project_tree;
 
@@ -18,6 +21,8 @@ pub struct RootApp {
     selected_root: Option<PathBuf>,
     /// Scanned directory tree respecting `.gitignore` and `.ignore` rules.
     scanned_tree: Option<FileNode>,
+    /// Auto-detected and user-verified framework profile for the loaded project.
+    project_profile: Option<ProjectProfile>,
     /// Last error encountered when scanning a folder, if any.
     error_message: Option<String>,
     /// Active scan options (such as whether hidden dotfiles are included).
@@ -34,7 +39,7 @@ impl RootApp {
         }
     }
 
-    /// Re-runs the ignore-aware directory scanner on the currently selected root path.
+    /// Re-runs the ignore-aware directory scanner and framework detector on the current root path.
     fn rescan_current_folder(&mut self) {
         let Some(root_path) = &self.selected_root else {
             return;
@@ -42,11 +47,13 @@ impl RootApp {
 
         match scan_directory(root_path, &self.scan_options) {
             Ok(tree) => {
+                self.project_profile = Some(detect_project_profile(&tree));
                 self.scanned_tree = Some(tree);
                 self.error_message = None;
             }
             Err(err) => {
                 self.scanned_tree = None;
+                self.project_profile = None;
                 self.error_message = Some(err.to_string());
             }
         }
@@ -74,6 +81,11 @@ impl eframe::App for RootApp {
             if let Some(error) = &self.error_message {
                 ui.colored_label(egui::Color32::LIGHT_RED, error);
                 ui.separator();
+            }
+
+            if let Some(profile) = &mut self.project_profile {
+                render_project_banner(ui, profile);
+                ui.add_space(6.0);
             }
 
             if let Some(tree) = &self.scanned_tree {

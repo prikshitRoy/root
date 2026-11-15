@@ -1,5 +1,6 @@
 //! Entry point for the `root` desktop application.
 
+pub mod detector;
 pub mod scanner;
 pub mod ui;
 
