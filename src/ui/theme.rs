@@ -2,17 +2,9 @@
 
 use eframe::egui::{self, Rounding, Vec2, Visuals};
 
-/// Default UI zoom scale (100%).
-pub const DEFAULT_ZOOM_FACTOR: f32 = 1.0;
-
-/// Minimum allowed UI zoom scale (70%).
-pub const MIN_ZOOM_FACTOR: f32 = 0.7;
-
-/// Maximum allowed UI zoom scale (200%).
-pub const MAX_ZOOM_FACTOR: f32 = 2.0;
-
-/// Increment/decrement step per zoom action (10%).
-pub const ZOOM_STEP: f32 = 0.1;
+pub use crate::settings::{
+    clamp_zoom, DEFAULT_ZOOM_FACTOR, MAX_ZOOM_FACTOR, MIN_ZOOM_FACTOR, ZOOM_STEP,
+};
 
 /// Multiplier to convert a normalized zoom factor into a display percentage.
 const PERCENT_MULTIPLIER: f32 = 100.0;
@@ -50,12 +42,6 @@ pub fn apply_app_theme(ctx: &egui::Context, is_dark_mode: bool, zoom_factor: f32
         style.spacing.button_padding = BUTTON_PADDING;
         style.spacing.item_spacing = ITEM_SPACING;
     });
-}
-
-/// Clamps `zoom_factor` to `[MIN_ZOOM_FACTOR, MAX_ZOOM_FACTOR]` rounded to the nearest tenth.
-pub fn clamp_zoom(zoom_factor: f32) -> f32 {
-    let clamped = zoom_factor.clamp(MIN_ZOOM_FACTOR, MAX_ZOOM_FACTOR);
-    (clamped * 10.0).round() / 10.0
 }
 
 /// Increases `current_zoom` by `ZOOM_STEP` up to `MAX_ZOOM_FACTOR`.

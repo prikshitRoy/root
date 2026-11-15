@@ -4,6 +4,7 @@ pub mod detector;
 pub mod markdown;
 pub mod scanner;
 pub mod selection;
+pub mod settings;
 pub mod ui;
 
 use eframe::egui;

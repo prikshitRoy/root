@@ -15,6 +15,7 @@ use crate::detector::{detect_project_profile, ProjectKind, ProjectProfile};
 use crate::markdown::{build_markdown_document, spawn_export_job, ExportJobHandle, ExportState};
 use crate::scanner::{scan_directory, FileNode, ScanOptions};
 use crate::selection::SelectionState;
+use crate::settings::{load_app_settings, save_app_settings, AppSettings};
 use preview_pane::render_markdown_preview_panel;
 use project_banner::render_project_banner;
 use status_bar::render_bottom_status_bar;
@@ -54,6 +55,9 @@ pub struct RootApp {
 
 impl Default for RootApp {
     fn default() -> Self {
+        // Load persisted theme and zoom preferences from disk on startup
+        let saved_settings = load_app_settings();
+
         Self {
             selected_root: None,
             scanned_tree: None,
@@ -61,8 +65,8 @@ impl Default for RootApp {
             selection: SelectionState::default(),
             search_query: String::new(),
             should_show_preview: false,
-            is_dark_mode: true,
-            zoom_factor: DEFAULT_ZOOM_FACTOR,
+            is_dark_mode: saved_settings.is_dark_mode,
+            zoom_factor: saved_settings.zoom_factor,
             active_export_job: None,
             export_state: None,
             status_message: None,
@@ -214,10 +218,22 @@ impl eframe::App for RootApp {
             ToolbarAction::ClearSelection => self.selection.clear_all(),
             ToolbarAction::CopyMarkdown => self.copy_markdown_to_clipboard(ctx),
             ToolbarAction::ExportMarkdown => self.start_export_markdown_job(),
-            ToolbarAction::ToggleTheme => self.is_dark_mode = !self.is_dark_mode,
-            ToolbarAction::ZoomIn => self.zoom_factor = step_zoom_in(self.zoom_factor),
-            ToolbarAction::ZoomOut => self.zoom_factor = step_zoom_out(self.zoom_factor),
-            ToolbarAction::ResetZoom => self.zoom_factor = DEFAULT_ZOOM_FACTOR,
+            ToolbarAction::ToggleTheme => {
+                self.is_dark_mode = !self.is_dark_mode;
+                self.persist_ui_settings();
+            }
+            ToolbarAction::ZoomIn => {
+                self.zoom_factor = step_zoom_in(self.zoom_factor);
+                self.persist_ui_settings();
+            }
+            ToolbarAction::ZoomOut => {
+                self.zoom_factor = step_zoom_out(self.zoom_factor);
+                self.persist_ui_settings();
+            }
+            ToolbarAction::ResetZoom => {
+                self.zoom_factor = DEFAULT_ZOOM_FACTOR;
+                self.persist_ui_settings();
+            }
             ToolbarAction::None => {}
         }
 
@@ -256,20 +272,39 @@ impl eframe::App for RootApp {
 }
 
 impl RootApp {
+    /// Saves the current `is_dark_mode` and `zoom_factor` preferences to disk.
+    fn persist_ui_settings(&mut self) {
+        let current = AppSettings {
+            is_dark_mode: self.is_dark_mode,
+            zoom_factor: self.zoom_factor,
+        };
+        if let Err(err) = save_app_settings(&current) {
+            self.error_message = Some(err);
+        }
+    }
+
     /// Checks for `Ctrl + Plus/Equals`, `Ctrl + Minus`, and `Ctrl + 0` keyboard shortcuts.
     fn handle_zoom_shortcuts(&mut self, ctx: &egui::Context) {
+        let mut did_zoom_change = false;
         ctx.input(|input| {
             if !input.modifiers.command {
                 return;
             }
             if input.key_pressed(egui::Key::Plus) || input.key_pressed(egui::Key::Equals) {
                 self.zoom_factor = step_zoom_in(self.zoom_factor);
+                did_zoom_change = true;
             } else if input.key_pressed(egui::Key::Minus) {
                 self.zoom_factor = step_zoom_out(self.zoom_factor);
+                did_zoom_change = true;
             } else if input.key_pressed(egui::Key::Num0) {
                 self.zoom_factor = DEFAULT_ZOOM_FACTOR;
+                did_zoom_change = true;
             }
         });
+
+        if did_zoom_change {
+            self.persist_ui_settings();
+        }
     }
 
     /// Renders the centered onboarding card and returns `true` if the user clicked the open button.
