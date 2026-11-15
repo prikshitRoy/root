@@ -1,6 +1,7 @@
 //! Public API for generating ASCII project trees and exporting `.md` code bundles.
 
 mod code_bundler;
+mod export_job;
 mod tree_formatter;
 mod writer;
 
@@ -8,5 +9,9 @@ mod writer;
 mod tests;
 
 pub use code_bundler::{code_fence_for_content, format_code_section, language_tag_for_path};
+pub use export_job::{
+    calculate_progress_fraction, collect_exportable_files, spawn_export_job, ExportJobHandle,
+    ExportState,
+};
 pub use tree_formatter::format_ascii_tree;
 pub use writer::{build_markdown_document, save_markdown_file};

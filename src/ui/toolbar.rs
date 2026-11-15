@@ -1,4 +1,4 @@
-//! Top toolbar controls for opening a project folder, configuring selection, and exporting `.md`.
+//! Top toolbar controls for folder picking, tree search filtering, theme switching, and `.md` export.
 
 use eframe::egui;
 
@@ -13,85 +13,132 @@ pub enum ToolbarAction {
     OpenFolder,
     /// User toggled a scan setting or clicked Rescan.
     Rescan,
-    /// User clicked "Select All Text Files" in `SelectedCode` mode.
+    /// User clicked "Select All Code" in `SelectedCode` mode.
     SelectAllFiles,
-    /// User clicked "Clear Selection" in `SelectedCode` mode.
+    /// User clicked "Clear All" in `SelectedCode` mode.
     ClearSelection,
+    /// User clicked "Copy .md" to copy the generated Markdown to the system clipboard.
+    CopyMarkdown,
     /// User clicked "Export .md..." to save the Markdown bundle to disk.
     ExportMarkdown,
+    /// User toggled between dark and light UI themes.
+    ToggleTheme,
 }
 
-/// Renders the top panel with folder picker, export mode selector, and `.md` export button.
-pub fn render_top_toolbar(
-    ctx: &egui::Context,
-    should_include_hidden: &mut bool,
-    export_mode: &mut ExportMode,
-    should_show_preview: &mut bool,
-    has_loaded_project: bool,
-) -> ToolbarAction {
+/// Mutable UI settings edited directly by controls in the top toolbar.
+pub struct ToolbarState<'a> {
+    pub should_include_hidden: &'a mut bool,
+    pub export_mode: &'a mut ExportMode,
+    pub should_show_preview: &'a mut bool,
+    pub search_query: &'a mut String,
+    pub is_dark_mode: bool,
+    pub has_loaded_project: bool,
+    pub is_export_running: bool,
+}
+
+/// Renders the two-row top toolbar and returns any triggered `ToolbarAction`.
+pub fn render_top_toolbar(ctx: &egui::Context, mut state: ToolbarState<'_>) -> ToolbarAction {
     let mut triggered_action = ToolbarAction::None;
 
     egui::TopBottomPanel::top("top_toolbar").show(ctx, |ui| {
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            if ui.button("📂 Open Project Folder...").clicked() {
-                triggered_action = ToolbarAction::OpenFolder;
-            }
+        ui.add_space(6.0);
+        render_primary_row(ui, &mut state, &mut triggered_action);
 
-            if has_loaded_project && ui.button("🔄 Rescan").clicked() {
-                triggered_action = ToolbarAction::Rescan;
-            }
-
-            let dotfile_toggle = ui.checkbox(should_include_hidden, "Include dotfiles");
-            if dotfile_toggle.changed() && has_loaded_project {
-                triggered_action = ToolbarAction::Rescan;
-            }
-
-            if has_loaded_project {
-                ui.separator();
-                render_export_controls(
-                    ui,
-                    export_mode,
-                    should_show_preview,
-                    &mut triggered_action,
-                );
-            }
-        });
-        ui.add_space(4.0);
+        if state.has_loaded_project {
+            ui.separator();
+            render_project_controls_row(ui, state, &mut triggered_action);
+        }
+        ui.add_space(6.0);
     });
 
     triggered_action
 }
 
-/// Renders the export mode dropdown, batch selection buttons, preview toggle, and save button.
-fn render_export_controls(
+/// Renders the top row with app branding, folder picker, rescan, dotfile checkbox, and theme button.
+fn render_primary_row(
     ui: &mut egui::Ui,
-    export_mode: &mut ExportMode,
-    should_show_preview: &mut bool,
+    state: &mut ToolbarState<'_>,
     triggered_action: &mut ToolbarAction,
 ) {
-    ui.label("Mode:");
-    egui::ComboBox::from_id_salt("export_mode_selector")
-        .selected_text(export_mode.label())
-        .show_ui(ui, |ui| {
-            for &mode in ExportMode::ALL {
-                ui.selectable_value(export_mode, mode, mode.label());
+    ui.horizontal_wrapped(|ui| {
+        ui.heading("🌿 root");
+        ui.separator();
+
+        if ui.button("📂 Open Project Folder...").clicked() {
+            *triggered_action = ToolbarAction::OpenFolder;
+        }
+
+        if state.has_loaded_project && ui.button("🔄 Rescan").clicked() {
+            *triggered_action = ToolbarAction::Rescan;
+        }
+
+        let dotfile_toggle = ui.checkbox(state.should_include_hidden, "Include dotfiles");
+        if dotfile_toggle.changed() && state.has_loaded_project {
+            *triggered_action = ToolbarAction::Rescan;
+        }
+
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let theme_label = if state.is_dark_mode {
+                "☀ Light"
+            } else {
+                "🌙 Dark"
+            };
+            if ui.button(theme_label).clicked() {
+                *triggered_action = ToolbarAction::ToggleTheme;
             }
         });
+    });
+}
 
-    if *export_mode == ExportMode::SelectedCode {
-        if ui.button("Select All Code").clicked() {
-            *triggered_action = ToolbarAction::SelectAllFiles;
+/// Renders the second row containing the file filter search box, export mode, and export buttons.
+fn render_project_controls_row(
+    ui: &mut egui::Ui,
+    state: ToolbarState<'_>,
+    triggered_action: &mut ToolbarAction,
+) {
+    ui.horizontal_wrapped(|ui| {
+        ui.label("🔍");
+        let search_box = egui::TextEdit::singleline(state.search_query)
+            .hint_text("Filter files or folders...")
+            .desired_width(180.0);
+        ui.add(search_box);
+
+        if !state.search_query.is_empty() && ui.small_button("✖").clicked() {
+            state.search_query.clear();
         }
-        if ui.button("Clear All").clicked() {
-            *triggered_action = ToolbarAction::ClearSelection;
+
+        ui.separator();
+        ui.label("Bundle:");
+        egui::ComboBox::from_id_salt("export_mode_selector")
+            .selected_text(state.export_mode.label())
+            .show_ui(ui, |ui| {
+                for &mode in ExportMode::ALL {
+                    ui.selectable_value(state.export_mode, mode, mode.label());
+                }
+            });
+
+        if *state.export_mode == ExportMode::SelectedCode {
+            if ui.button("☑ All Code").clicked() {
+                *triggered_action = ToolbarAction::SelectAllFiles;
+            }
+            if ui.button("☐ None").clicked() {
+                *triggered_action = ToolbarAction::ClearSelection;
+            }
         }
-    }
 
-    ui.separator();
-    ui.checkbox(should_show_preview, "Live .md Preview");
+        ui.separator();
+        ui.checkbox(state.should_show_preview, "👁 Live Preview");
 
-    if ui.button("💾 Export .md...").clicked() {
-        *triggered_action = ToolbarAction::ExportMarkdown;
-    }
+        if ui.button("📋 Copy .md").clicked() {
+            *triggered_action = ToolbarAction::CopyMarkdown;
+        }
+
+        let export_btn = egui::Button::new("💾 Export .md...");
+        if ui
+            .add_enabled(!state.is_export_running, export_btn)
+            .clicked()
+        {
+            *triggered_action = ToolbarAction::ExportMarkdown;
+        }
+    });
 }
