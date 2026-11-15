@@ -1,5 +1,7 @@
 //! Entry point for the `root` desktop application.
 
+pub mod scanner;
+
 use eframe::egui;
 
 /// Launches the native desktop window with default configuration.
