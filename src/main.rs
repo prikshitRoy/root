@@ -1,8 +1,10 @@
 //! Entry point for the `root` desktop application.
 
 pub mod scanner;
+pub mod ui;
 
 use eframe::egui;
+use ui::RootApp;
 
 /// Launches the native desktop window with default configuration.
 fn main() -> eframe::Result<()> {
@@ -18,17 +20,4 @@ fn main() -> eframe::Result<()> {
         native_options,
         Box::new(|_cc| Ok(Box::new(RootApp::default()))),
     )
-}
-
-/// Top-level application state container.
-#[derive(Default)]
-struct RootApp;
-
-impl eframe::App for RootApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("root");
-            ui.label("Select a software project folder to inspect its tree and export Markdown.");
-        });
-    }
 }
