@@ -18,7 +18,7 @@ use crate::selection::SelectionState;
 use preview_pane::render_markdown_preview_panel;
 use project_banner::render_project_banner;
 use status_bar::render_bottom_status_bar;
-use theme::apply_app_theme;
+use theme::{apply_app_theme, step_zoom_in, step_zoom_out, DEFAULT_ZOOM_FACTOR};
 use toolbar::{render_top_toolbar, ToolbarAction, ToolbarState};
 use tree_view::render_project_tree;
 
@@ -38,6 +38,8 @@ pub struct RootApp {
     should_show_preview: bool,
     /// Whether dark theme visuals are active (`true` by default).
     is_dark_mode: bool,
+    /// Current UI scale factor (`1.0` = 100%).
+    zoom_factor: f32,
     /// Handle to an active background `.md` export job, if one is running.
     active_export_job: Option<ExportJobHandle>,
     /// Latest progress state received from the background export worker.
@@ -60,6 +62,7 @@ impl Default for RootApp {
             search_query: String::new(),
             should_show_preview: false,
             is_dark_mode: true,
+            zoom_factor: DEFAULT_ZOOM_FACTOR,
             active_export_job: None,
             export_state: None,
             status_message: None,
@@ -125,7 +128,7 @@ impl RootApp {
             active_kind,
             self.selection.clone(),
             self.scan_options.max_file_size_bytes,
-        save_path,
+            save_path,
         ));
     }
 
@@ -182,7 +185,8 @@ impl RootApp {
 
 impl eframe::App for RootApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        apply_app_theme(ctx, self.is_dark_mode);
+        self.handle_zoom_shortcuts(ctx);
+        apply_app_theme(ctx, self.is_dark_mode, self.zoom_factor);
         self.poll_export_progress(ctx);
 
         let action = render_top_toolbar(
@@ -193,6 +197,7 @@ impl eframe::App for RootApp {
                 should_show_preview: &mut self.should_show_preview,
                 search_query: &mut self.search_query,
                 is_dark_mode: self.is_dark_mode,
+                zoom_factor: self.zoom_factor,
                 has_loaded_project: self.selected_root.is_some(),
                 is_export_running: self.active_export_job.is_some(),
             },
@@ -210,6 +215,9 @@ impl eframe::App for RootApp {
             ToolbarAction::CopyMarkdown => self.copy_markdown_to_clipboard(ctx),
             ToolbarAction::ExportMarkdown => self.start_export_markdown_job(),
             ToolbarAction::ToggleTheme => self.is_dark_mode = !self.is_dark_mode,
+            ToolbarAction::ZoomIn => self.zoom_factor = step_zoom_in(self.zoom_factor),
+            ToolbarAction::ZoomOut => self.zoom_factor = step_zoom_out(self.zoom_factor),
+            ToolbarAction::ResetZoom => self.zoom_factor = DEFAULT_ZOOM_FACTOR,
             ToolbarAction::None => {}
         }
 
@@ -248,6 +256,22 @@ impl eframe::App for RootApp {
 }
 
 impl RootApp {
+    /// Checks for `Ctrl + Plus/Equals`, `Ctrl + Minus`, and `Ctrl + 0` keyboard shortcuts.
+    fn handle_zoom_shortcuts(&mut self, ctx: &egui::Context) {
+        ctx.input(|input| {
+            if !input.modifiers.command {
+                return;
+            }
+            if input.key_pressed(egui::Key::Plus) || input.key_pressed(egui::Key::Equals) {
+                self.zoom_factor = step_zoom_in(self.zoom_factor);
+            } else if input.key_pressed(egui::Key::Minus) {
+                self.zoom_factor = step_zoom_out(self.zoom_factor);
+            } else if input.key_pressed(egui::Key::Num0) {
+                self.zoom_factor = DEFAULT_ZOOM_FACTOR;
+            }
+        });
+    }
+
     /// Renders the centered onboarding card and returns `true` if the user clicked the open button.
     fn render_onboarding_card(&self, ui: &mut egui::Ui) -> bool {
         let mut should_open = false;

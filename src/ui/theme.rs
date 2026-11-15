@@ -1,6 +1,21 @@
-//! Visual styling, spacing, and dark/light theme configuration for the `root` UI.
+//! Visual styling, UI zoom scaling, and dark/light theme configuration for the `root` UI.
 
 use eframe::egui::{self, Rounding, Vec2, Visuals};
+
+/// Default UI zoom scale (100%).
+pub const DEFAULT_ZOOM_FACTOR: f32 = 1.0;
+
+/// Minimum allowed UI zoom scale (70%).
+pub const MIN_ZOOM_FACTOR: f32 = 0.7;
+
+/// Maximum allowed UI zoom scale (200%).
+pub const MAX_ZOOM_FACTOR: f32 = 2.0;
+
+/// Increment/decrement step per zoom action (10%).
+pub const ZOOM_STEP: f32 = 0.1;
+
+/// Multiplier to convert a normalized zoom factor into a display percentage.
+const PERCENT_MULTIPLIER: f32 = 100.0;
 
 /// Horizontal and vertical padding inside interactive buttons and inputs.
 const BUTTON_PADDING: Vec2 = Vec2::new(10.0, 5.0);
@@ -11,15 +26,16 @@ const ITEM_SPACING: Vec2 = Vec2::new(8.0, 6.0);
 /// Corner rounding radius in logical pixels for buttons, frames, and inputs.
 const WIDGET_CORNER_RADIUS: f32 = 6.0;
 
-/// Applies custom spacing, rounded widget corners, and dark or light color visuals to `ctx`.
-pub fn apply_app_theme(ctx: &egui::Context, is_dark_mode: bool) {
+/// Applies UI zoom scaling, custom spacing, rounded corners, and dark/light visuals to `ctx`.
+pub fn apply_app_theme(ctx: &egui::Context, is_dark_mode: bool, zoom_factor: f32) {
+    ctx.set_zoom_factor(clamp_zoom(zoom_factor));
+
     let mut visuals = if is_dark_mode {
         Visuals::dark()
     } else {
         Visuals::light()
     };
 
-    // Configure uniform rounded corners across all widget states in egui 0.29
     let rounding = Rounding::same(WIDGET_CORNER_RADIUS);
     visuals.widgets.noninteractive.rounding = rounding;
     visuals.widgets.inactive.rounding = rounding;
@@ -34,4 +50,69 @@ pub fn apply_app_theme(ctx: &egui::Context, is_dark_mode: bool) {
         style.spacing.button_padding = BUTTON_PADDING;
         style.spacing.item_spacing = ITEM_SPACING;
     });
+}
+
+/// Clamps `zoom_factor` to `[MIN_ZOOM_FACTOR, MAX_ZOOM_FACTOR]` rounded to the nearest tenth.
+pub fn clamp_zoom(zoom_factor: f32) -> f32 {
+    let clamped = zoom_factor.clamp(MIN_ZOOM_FACTOR, MAX_ZOOM_FACTOR);
+    (clamped * 10.0).round() / 10.0
+}
+
+/// Increases `current_zoom` by `ZOOM_STEP` up to `MAX_ZOOM_FACTOR`.
+pub fn step_zoom_in(current_zoom: f32) -> f32 {
+    clamp_zoom(current_zoom + ZOOM_STEP)
+}
+
+/// Decreases `current_zoom` by `ZOOM_STEP` down to `MIN_ZOOM_FACTOR`.
+pub fn step_zoom_out(current_zoom: f32) -> f32 {
+    clamp_zoom(current_zoom - ZOOM_STEP)
+}
+
+/// Formats `zoom_factor` as a whole-number percentage string (e.g., `"110%"`).
+pub fn format_zoom_percentage(zoom_factor: f32) -> String {
+    let percent = (clamp_zoom(zoom_factor) * PERCENT_MULTIPLIER).round() as u32;
+    format!("{percent}%")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        clamp_zoom, format_zoom_percentage, step_zoom_in, step_zoom_out, DEFAULT_ZOOM_FACTOR,
+        MAX_ZOOM_FACTOR, MIN_ZOOM_FACTOR,
+    };
+
+    #[test]
+    fn steps_zoom_in_and_out_by_ten_percent() {
+        // Arrange
+        let initial = DEFAULT_ZOOM_FACTOR;
+
+        // Act
+        let zoomed_in = step_zoom_in(initial);
+        let zoomed_out = step_zoom_out(initial);
+
+        // Assert
+        assert_eq!(zoomed_in, 1.1);
+        assert_eq!(zoomed_out, 0.9);
+    }
+
+    #[test]
+    fn clamps_zoom_factor_at_minimum_and_maximum_bounds() {
+        // Arrange & Act
+        let below_min = step_zoom_out(MIN_ZOOM_FACTOR);
+        let above_max = step_zoom_in(MAX_ZOOM_FACTOR);
+        let extreme_high = clamp_zoom(5.0);
+
+        // Assert
+        assert_eq!(below_min, MIN_ZOOM_FACTOR);
+        assert_eq!(above_max, MAX_ZOOM_FACTOR);
+        assert_eq!(extreme_high, MAX_ZOOM_FACTOR);
+    }
+
+    #[test]
+    fn formats_zoom_factor_as_rounded_percentage() {
+        // Arrange & Act & Assert
+        assert_eq!(format_zoom_percentage(1.0), "100%");
+        assert_eq!(format_zoom_percentage(1.2), "120%");
+        assert_eq!(format_zoom_percentage(0.8), "80%");
+    }
 }

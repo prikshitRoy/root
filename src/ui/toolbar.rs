@@ -23,6 +23,12 @@ pub enum ToolbarAction {
     ExportMarkdown,
     /// User toggled between dark and light UI themes.
     ToggleTheme,
+    /// User clicked the Zoom In button (`+`).
+    ZoomIn,
+    /// User clicked the Zoom Out button (`-`).
+    ZoomOut,
+    /// User clicked the zoom percentage badge to reset zoom to 100%.
+    ResetZoom,
 }
 
 /// Mutable UI settings edited directly by controls in the top toolbar.
@@ -32,6 +38,7 @@ pub struct ToolbarState<'a> {
     pub should_show_preview: &'a mut bool,
     pub search_query: &'a mut String,
     pub is_dark_mode: bool,
+    pub zoom_factor: f32,
     pub has_loaded_project: bool,
     pub is_export_running: bool,
 }
@@ -54,7 +61,7 @@ pub fn render_top_toolbar(ctx: &egui::Context, mut state: ToolbarState<'_>) -> T
     triggered_action
 }
 
-/// Renders the top row with app branding, folder picker, rescan, dotfile checkbox, and theme button.
+/// Renders the top row with app branding, folder picker, rescan, dotfile checkbox, zoom, and theme.
 fn render_primary_row(
     ui: &mut egui::Ui,
     state: &mut ToolbarState<'_>,
@@ -85,6 +92,33 @@ fn render_primary_row(
             };
             if ui.button(theme_label).clicked() {
                 *triggered_action = ToolbarAction::ToggleTheme;
+            }
+
+            ui.separator();
+
+            if ui
+                .button("➕")
+                .on_hover_text("Zoom In (Ctrl + Plus)")
+                .clicked()
+            {
+                *triggered_action = ToolbarAction::ZoomIn;
+            }
+
+            let zoom_label = crate::ui::theme::format_zoom_percentage(state.zoom_factor);
+            if ui
+                .button(zoom_label)
+                .on_hover_text("Reset Zoom to 100% (Ctrl + 0)")
+                .clicked()
+            {
+                *triggered_action = ToolbarAction::ResetZoom;
+            }
+
+            if ui
+                .button("➖")
+                .on_hover_text("Zoom Out (Ctrl + Minus)")
+                .clicked()
+            {
+                *triggered_action = ToolbarAction::ZoomOut;
             }
         });
     });
