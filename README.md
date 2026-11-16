@@ -37,6 +37,10 @@ Download the latest release for your OS from the [**GitHub Releases**](../../rel
 | **macOS (Intel)** | `root-macos-x64.dmg` (Drag-and-drop Disk Image) | `root-macos-x64.app.zip` or `root-macos-x64.tar.gz` |
 | **Linux (x64)** | `root-linux-amd64.deb` (Ubuntu/Debian) or `root-installer-linux-x64` | `root-linux-x64.tar.gz` |
 
+> **Platform Testing Status:**
+> - **Windows (x64) & Linux (Ubuntu x64):** Manually tested and verified on real systems, in addition to automated CI tests.
+> - **macOS (Apple Silicon & Intel):** Built and verified via automated unit/integration tests on GitHub Actions macOS runners, but **not yet manually tested on physical Mac hardware**. If you use macOS and encounter any issues, please [open an issue](../../issues).
+
 ### Prerequisites (Building from Source)
 
 - [Rust toolchain](https://rustup.rs/) (`rustc` and `cargo`, 2021 edition or newer)

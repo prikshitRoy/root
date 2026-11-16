@@ -39,6 +39,8 @@ Every tagged release (`v*`) builds and publishes native installers and portable 
 
 ### macOS (Apple Silicon & Intel)
 
+> **Note for macOS Users:** While Windows and Linux (Ubuntu) releases are manually tested on local environments, macOS packages (`.dmg`, `.app.zip`, and `.tar.gz`) are compiled and tested exclusively via GitHub Actions CI (`macos-latest`) as the maintainer does not currently have access to Mac hardware. Community feedback and bug reports from macOS users are welcome!
+
 - **Recommended (`.dmg` Disk Image):**
   1. Download `root-macos-arm64.dmg` (M1/M2/M3/M4) or `root-macos-x64.dmg` (Intel).
   2. Double-click the `.dmg` file and drag `root.app` into the `Applications` folder.
