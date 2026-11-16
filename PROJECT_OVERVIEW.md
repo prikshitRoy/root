@@ -9,29 +9,31 @@
 
 **Name:** `root`
 
-A cross-platform **desktop application built in pure Rust** that scans software project directories, detects the project framework (Next.js, Vite, Tauri, Electron, Node.js, Rust/Cargo, etc.), displays an interactive file tree respecting `.gitignore` and `.ignore` rules, and exports the tree structure plus all or selected source files into a single `.md` file.
+A cross-platform **desktop application built in pure Rust** that scans software project directories, detects the project framework (Next.js, Vite, WXT, Tauri, Electron, Node.js, Rust/Cargo, etc.), displays an interactive file tree respecting `.gitignore` and `.ignore` rules, and exports the tree structure plus all or selected source files into a single `.md` file.
 
-It is built for developers who want a fast, local-first way to package project structure and source code context into clean Markdown documentation or AI context files.
+It compiles into both a standalone portable desktop executable (`root`) that runs directly and a built-in graphical/CLI Setup Wizard (`root-installer`) that installs the application, creates system shortcuts, and manages clean uninstallation.
 
 ## 2. Tech Stack
 
-| Area                   | Choice                                                      |
-| ---------------------- | ----------------------------------------------------------- |
-| Language               | Rust (2021 Edition)                                         |
-| Desktop UI             | `eframe` / `egui` (v0.29)                                   |
-| Directory traversal    | `ignore` (v0.4)                                             |
-| Native OS dialogs      | `rfd` (v0.15)                                               |
-| Manifest & config I/O  | `serde` (v1.0), `serde_json` (v1.0), `toml` (v0.8)          |
-| Unit/integration tests | Cargo built-in test runner (`cargo test`) + `tempfile` (v3.13) |
-| Target platforms       | Windows, Linux, macOS                                       |
+| Area                   | Choice                                                                                  |
+| ---------------------- | --------------------------------------------------------------------------------------- |
+| Language               | Rust (2021 Edition)                                                                     |
+| Desktop & Installer UI | `eframe` / `egui` (v0.29)                                                               |
+| Directory traversal    | `ignore` (v0.4)                                                                         |
+| Native OS dialogs      | `rfd` (v0.15)                                                                           |
+| Manifest & config I/O  | `serde` (v1.0), `serde_json` (v1.0), `toml` (v0.8)                                      |
+| Packaging metadata     | `cargo-packager` & `cargo-bundle` metadata in `Cargo.toml`                              |
+| Unit/integration tests | Cargo built-in test runner (`cargo test`) + `tempfile` (v3.13)                          |
+| Target platforms       | Windows (active release binary target: `root.exe` & `root-installer.exe`), Linux, macOS |
 
 ## 3. Core Concepts
 
 - **FileNode:** A node in the scanned project hierarchy representing either a directory or a file, along with its relative path, size in bytes, and content classification (`TextCode`, `Lockfile`, or `Binary`).
-- **ProjectKind & ProjectProfile:** The auto-detected software project framework (Tauri, Electron, Next.js, Vite, Rust/Cargo, Node.js, or Unknown) paired with detection evidence and user cross-check/override state.
+- **ProjectKind & ProjectProfile:** The auto-detected software project framework (Tauri, Electron, WXT, Next.js, Vite, Rust/Cargo, Node.js, or Unknown) paired with detection evidence and user cross-check/override state.
 - **SelectionState & ExportMode:** Tracks how source files are bundled into the Markdown document (`TreeOnly`, `AllCode`, or `SelectedCode`) with cascading folder and file checkboxes.
 - **ScanJobHandle & ExportJobHandle:** Non-blocking background worker handles using `std::thread` and `std::sync::mpsc` to stream live directory scan counts and `.md` file export progress to the UI.
 - **AppSettings:** Persistent user preferences (`is_dark_mode` and `zoom_factor`) stored as TOML in the OS configuration directory (`settings.toml`).
+- **InstallerApp, InstallOptions & InstallReceipt:** Cross-platform installation engine and `egui` Setup Wizard that copies binaries, generates OS shortcuts/bundles, registers the uninstaller, and writes an `install-receipt.toml` manifest for clean uninstallation.
 
 ## 4. Features
 
@@ -39,69 +41,93 @@ Status key: **Done** | **In progress** | **Planned**
 
 ### 4.1 Workspace and app shell
 
-| Feature                                                                                         | Status  |
-| ----------------------------------------------------------------------------------------------- | ------- |
-| Cargo project setup with `eframe` native window shell                                           | Done    |
-| Feature-grouped module architecture (`scanner`, `detector`, `selection`, `settings`, `markdown`, `ui`) | Done |
+| Feature                                                                                                         | Status |
+| --------------------------------------------------------------------------------------------------------------- | ------ |
+| Cargo project setup with `eframe` native window shell                                                           | Done   |
+| Shared library (`src/lib.rs`) with dual binary targets: portable app (`root`) and Setup Wizard (`root-installer`) | Done   |
+| Feature-grouped module architecture (`scanner`, `detector`, `selection`, `settings`, `markdown`, `installer`, `ui`) | Done |
 
 ### 4.2 Directory scanning and ignore handling
 
-| Feature                                                                                         | Status  |
-| ----------------------------------------------------------------------------------------------- | ------- |
-| Recursive directory scanning respecting `.gitignore`, `.ignore`, and `.git/info/exclude`        | Done    |
-| Fast extension-first file classification and binary/lockfile filtering                          | Done    |
-| Non-blocking background directory scan worker streaming live entry counts                       | Done    |
+| Feature                                                                                  | Status |
+| ---------------------------------------------------------------------------------------- | ------ |
+| Recursive directory scanning respecting `.gitignore`, `.ignore`, and `.git/info/exclude` | Done   |
+| Fast extension-first file classification and binary/lockfile filtering                   | Done   |
+| Non-blocking background directory scan worker streaming live entry counts                | Done   |
 
 ### 4.3 Framework detection
 
-| Feature                                                                                         | Status  |
-| ----------------------------------------------------------------------------------------------- | ------- |
-| Automatic detection for Next.js, Vite, WXT, Tauri, Electron, Node.js, and Rust/Cargo projects   | Done    |
-| Interactive UI banner to cross-check, confirm, or override the detected project type            | Done    |
+| Feature                                                                                       | Status |
+| --------------------------------------------------------------------------------------------- | ------ |
+| Automatic detection for Next.js, Vite, WXT, Tauri, Electron, Node.js, and Rust/Cargo projects | Done   |
+| Interactive UI banner to cross-check, confirm, or override the detected project type          | Done   |
 
 ### 4.4 Tree selection and Markdown export
 
-| Feature                                                                                         | Status  |
-| ----------------------------------------------------------------------------------------------- | ------- |
-| ASCII/Unicode tree structure generator                                                          | Done    |
-| Export modes: Tree Only, Tree + All Code, and Tree + Selected Code                              | Done    |
-| Fenced code block bundler with file path headers, syntax tags, and dynamic backtick escaping    | Done    |
-| Native folder picker and `.md` file save dialog via `rfd`                                       | Done    |
-| Background `.md` export worker with real-time animated progress bar and one-click clipboard copy | Done   |
+| Feature                                                                                           | Status |
+| ------------------------------------------------------------------------------------------------- | ------ |
+| ASCII/Unicode tree structure generator                                                            | Done   |
+| Export modes: Tree Only, Tree + All Code, and Tree + Selected Code                                | Done   |
+| Fenced code block bundler with file path headers, syntax tags, and dynamic backtick escaping      | Done   |
+| Native folder picker and `.md` file save dialog via `rfd`                                         | Done   |
+| Background `.md` export worker with real-time animated progress bar and one-click clipboard copy  | Done   |
 
 ### 4.5 User interface
 
-| Feature                                                                                         | Status  |
-| ----------------------------------------------------------------------------------------------- | ------- |
-| Interactive collapsible tree view with cascading folder/file checkboxes                         | Done    |
-| Dynamic `All Code` and `None` preset buttons with live checkmark (`☑`/`☐`) and active states    | Done    |
-| Animated project loading view displaying live scanned file counts and current path              | Done    |
-| Live Markdown preview pane                                                                      | Done    |
-| Live file/folder search filter, summary stats bar, and Dark/Light theme switcher                | Done    |
-| UI Zoom In / Zoom Out / Reset controls (`70%`–`200%`) via toolbar buttons and keyboard shortcuts | Done    |
-| Persistent TOML app settings (`settings.toml`) for saving and restoring theme and zoom state    | Done    |
+| Feature                                                                                          | Status |
+| ------------------------------------------------------------------------------------------------ | ------ |
+| Interactive collapsible tree view with cascading folder/file checkboxes                          | Done   |
+| Dynamic `All Code` and `None` preset buttons with live checkmark (`☑`/`☐`) and active states     | Done   |
+| Animated project loading view displaying live scanned file counts and current path               | Done   |
+| Live Markdown preview pane                                                                       | Done   |
+| Live file/folder search filter, summary stats bar, and Dark/Light theme switcher                 | Done   |
+| UI Zoom In / Zoom Out / Reset controls (`70%`–`200%`) via toolbar buttons and keyboard shortcuts | Done   |
+| Persistent TOML app settings (`settings.toml`) for saving and restoring theme and zoom state     | Done   |
+| Top toolbar `📦 Install...` button to launch the Setup Wizard directly from the portable app     | Done   |
 
-### 4.6 Testing
+### 4.6 Application installer and OS integration
 
-| Feature                                                                                         | Status  |
-| ----------------------------------------------------------------------------------------------- | ------- |
-| Unit tests for pure detector, selection, settings, UI helpers, and Markdown formatting logic    | Done    |
-| Integration tests using `tempfile` for ignore-aware directory scanning, export, and settings    | Done    |
+| Feature                                                                                                           | Status |
+| ----------------------------------------------------------------------------------------------------------------- | ------ |
+| Graphical `eframe`/`egui` Setup Wizard (`root-installer`) to install, update, launch, or uninstall `root`         | Done   |
+| Headless CLI installer & uninstaller flags (`--install`, `--uninstall`, `--dir <path>`, `--installer`)            | Done   |
+| Windows installer workflow (`%LOCALAPPDATA%\Programs\root`, Start Menu & Desktop `.lnk` shortcuts, `HKCU` Uninstall Registry entry) | Done |
+| Cross-platform installer support for macOS (`~/Applications/root.app` bundle) and Linux (`.desktop` & SVG icon)   | Done   |
+| Single-file fallback allowing `root-installer.exe` to install itself as `root.exe` when distributed standalone    | Done   |
+| TOML installation receipt (`install-receipt.toml`) tracking all created files and folders for clean removal       | Done   |
+
+### 4.7 Testing
+
+| Feature                                                                                                      | Status |
+| ------------------------------------------------------------------------------------------------------------ | ------ |
+| Unit tests for pure detector, selection, settings, installer CLI/shortcut generators, UI helpers, and Markdown | Done |
+| Integration tests using `tempfile` for ignore-aware scanning, `.md` export, settings, and install/uninstall flows | Done |
 
 ## 5. Known Issues and Open Items
 
 > Verify these against the current code; remove an item when it is fixed.
 
-- None recorded.
+- Release builds are currently targeted and tested primarily for Windows (`x86_64-pc-windows-msvc`), producing `root.exe` (portable) and `root-installer.exe` (Setup Wizard).
 
 ## 6. Project Structure
 
 ```text
-Cargo.toml               # Rust package manifest and dependencies
+Cargo.toml               # Rust package manifest, dual [[bin]] targets, and bundler metadata
 README.md                # User and developer documentation
 PROJECT_OVERVIEW.md      # Single source of truth for project status and architecture
 src/
-  main.rs                # Application entry point and native window initialization
+  lib.rs                 # Shared library root exposing app and installer runners
+  main.rs                # Entry point for portable `root` binary (with CLI installer flag support)
+  bin/
+    root-installer.rs    # Entry point for dedicated `root-installer` Setup Wizard binary
+  installer/             # Cross-platform GUI/CLI installer, shortcut generators, and uninstaller
+    mod.rs               # Public installer API and CLI argument parser (`--install`, `--uninstall`)
+    types.rs             # TargetOs, InstallOptions, InstallPaths, InstallReceipt, and InstallerError
+    paths.rs             # Per-OS path resolution (Windows AppData/Start Menu, macOS .app, Linux XDG)
+    shortcuts.rs         # Generators for Windows `.lnk` PowerShell scripts, Registry keys, `.desktop`, and `Info.plist`
+    engine.rs            # File installation, permission handling, receipt writing, and uninstallation logic
+    ui.rs                # Interactive `egui` Setup Wizard (`InstallerApp`)
+    tests.rs             # Unit and `tempfile` integration tests for CLI parsing, shortcuts, and install/uninstall
   scanner/               # Ignore-aware directory traversal and binary/lockfile classification
     mod.rs               # Public scanner API re-exports
     types.rs             # FileNode, FileCategory, ScanOptions, and ScanError definitions
@@ -136,19 +162,34 @@ src/
     project_banner.rs    # Interactive banner to confirm or override the detected framework
     status_bar.rs        # Bottom status bar with animated `.md` export progress bar
     theme.rs             # Custom dark/light theme visuals, UI zoom scaling, and widget spacing
-    toolbar.rs           # Top toolbar with search filter, zoom/theme toggles, copy, and export
+    toolbar.rs           # Top toolbar with search filter, zoom/theme toggles, install launcher, copy, and export
     tree_view.rs         # Scrollable project tree view with unique checkbox IDs and search filter
 ```
 
 ## 7. How to Run
 
 ```bash
-cargo check         # fast compile check
-cargo run           # run the desktop app in development
-cargo test          # run all unit and integration tests
-cargo build -r      # build optimized release binary
+cargo check                        # fast compile check
+cargo run --bin root               # run the desktop app in development
+cargo run --bin root-installer     # run the graphical Setup Wizard in development
+cargo test                         # run all unit and integration tests
+cargo build -r --bins              # build optimized Windows release binaries (root.exe & root-installer.exe)
 ```
 
+### Headless Installer CLI Usage (Windows)
+
+```powershell
+# Install to %LOCALAPPDATA%\Programs\root with Start Menu & Desktop shortcuts
+.\target\release\root-installer.exe --install
+
+# Install to a custom directory
+.\target\release\root-installer.exe --install --dir "C:\Tools\root"
+
+# Uninstall cleanly and remove shortcuts + Registry entry
+.\target\release\root-installer.exe --uninstall
+```
+
+---
 
 ## How to Keep This File Updated (Instructions for AI)
 

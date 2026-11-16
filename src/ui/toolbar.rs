@@ -71,7 +71,7 @@ fn render_primary_row(
     triggered_action: &mut ToolbarAction,
 ) {
     ui.horizontal_wrapped(|ui| {
-        ui.heading("🌿 root");
+        ui.heading(crate::branding::APP_DISPLAY_TITLE);
         ui.separator();
 
         let open_btn = egui::Button::new("📂 Open Project Folder...");

@@ -74,7 +74,7 @@ fn resolve_windows_paths(home_dir: &Path, options: &InstallOptions) -> InstallPa
         menu_entry_path,
         desktop_entry_path,
         cli_link_path: None,
-        icon_path: None,
+        icon_path: Some(options.install_dir.join("root.ico")),
     }
 }
 

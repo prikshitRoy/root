@@ -1,17 +1,8 @@
-//! Pure generators and OS helpers for `.desktop` entries, macOS `Info.plist`, SVG icons, and Windows `.lnk` shortcuts.
+//! Pure generators and OS helpers for `.desktop` entries, macOS `Info.plist`, icons, and Windows `.lnk` shortcuts.
 
 use std::path::Path;
 
-/// Embedded scalable vector icon (`root.svg`) used for Linux/macOS desktop integration.
-pub const APP_ICON_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="26" fill="#181c24"/>
-  <path d="M36 92V44C36 39.58 39.58 36 44 36H84" stroke="#4ade80" stroke-width="10" stroke-linecap="round"/>
-  <path d="M36 66H76" stroke="#4ade80" stroke-width="10" stroke-linecap="round"/>
-  <circle cx="84" cy="36" r="9" fill="#22c55e"/>
-  <circle cx="76" cy="66" r="9" fill="#22c55e"/>
-  <circle cx="36" cy="92" r="9" fill="#4ade80"/>
-</svg>
-"##;
+pub use crate::branding::APP_ICON_SVG;
 
 /// Builds a FreeDesktop-compliant `.desktop` file for Linux application launchers.
 pub fn build_linux_desktop_entry(binary_path: &Path, icon_path: Option<&Path>) -> String {
@@ -56,6 +47,8 @@ pub fn build_macos_info_plist(version: &str) -> String {
     <string>APPL</string>
     <key>CFBundleExecutable</key>
     <string>root</string>
+    <key>CFBundleIconFile</key>
+    <string>root.svg</string>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>
@@ -69,16 +62,19 @@ pub fn build_macos_desktop_command(binary_path: &Path) -> String {
     format!("#!/bin/sh\n\"{}\" &\n", binary_path.to_string_lossy())
 }
 
-/// Builds a PowerShell script that creates a native Windows `.lnk` shortcut via `WScript.Shell`.
+/// Builds a PowerShell script that creates a native Windows `.lnk` shortcut with an `IconLocation`.
 pub fn build_windows_shortcut_ps_script(
     shortcut_lnk_path: &Path,
     target_exe_path: &Path,
     working_dir: &Path,
+    icon_path: Option<&Path>,
     description: &str,
 ) -> String {
     let lnk = escape_ps_single_quoted(&shortcut_lnk_path.to_string_lossy());
     let target = escape_ps_single_quoted(&target_exe_path.to_string_lossy());
     let work = escape_ps_single_quoted(&working_dir.to_string_lossy());
+    let icon_source = icon_path.unwrap_or(target_exe_path);
+    let icon = escape_ps_single_quoted(&icon_source.to_string_lossy());
     let desc = escape_ps_single_quoted(description);
 
     format!(
@@ -86,6 +82,7 @@ pub fn build_windows_shortcut_ps_script(
          $s = $ws.CreateShortcut('{lnk}'); \
          $s.TargetPath = '{target}'; \
          $s.WorkingDirectory = '{work}'; \
+         $s.IconLocation = '{icon},0'; \
          $s.Description = '{desc}'; \
          $s.Save()"
     )
@@ -101,12 +98,14 @@ pub fn create_windows_lnk_shortcut(
     shortcut_lnk_path: &Path,
     target_exe_path: &Path,
     working_dir: &Path,
+    icon_path: Option<&Path>,
     description: &str,
 ) -> bool {
     let script = build_windows_shortcut_ps_script(
         shortcut_lnk_path,
         target_exe_path,
         working_dir,
+        icon_path,
         description,
     );
 
@@ -139,6 +138,7 @@ pub fn update_windows_uninstall_registry(
     install_dir: &Path,
     installed_binary: &Path,
     installed_uninstaller: &Path,
+    icon_path: Option<&Path>,
     version: &str,
     should_register: bool,
 ) -> bool {
@@ -156,13 +156,14 @@ pub fn update_windows_uninstall_registry(
                 .is_ok_and(|s| s.success());
         }
 
+        let display_icon = icon_path.unwrap_or(installed_binary);
         let uninstall_cmd = format!("\"{}\" --uninstall", installed_uninstaller.display());
         let entries: &[(&str, &str, &str)] = &[
             ("DisplayName", "REG_SZ", "root"),
             ("DisplayVersion", "REG_SZ", version),
             ("Publisher", "REG_SZ", "root"),
             ("InstallLocation", "REG_SZ", &install_dir.to_string_lossy()),
-            ("DisplayIcon", "REG_SZ", &installed_binary.to_string_lossy()),
+            ("DisplayIcon", "REG_SZ", &display_icon.to_string_lossy()),
             ("UninstallString", "REG_SZ", &uninstall_cmd),
             ("NoModify", "REG_DWORD", "1"),
             ("NoRepair", "REG_DWORD", "1"),
@@ -189,6 +190,7 @@ pub fn update_windows_uninstall_registry(
             install_dir,
             installed_binary,
             installed_uninstaller,
+            icon_path,
             version,
             should_register,
         );

@@ -379,7 +379,7 @@ impl RootApp {
             egui::Frame::group(ui.style())
                 .inner_margin(24.0)
                 .show(ui, |ui| {
-                    ui.heading("🌿 Welcome to root");
+                    ui.heading(crate::branding::APP_WELCOME_TITLE);
                     ui.add_space(6.0);
                     ui.label(
                         "Inspect software project trees (Next.js, Vite, WXT, Tauri, Electron, Rust)\n\

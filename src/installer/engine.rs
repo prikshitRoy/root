@@ -93,7 +93,7 @@ pub fn install_application(
     }
 
     if let Some(icon_path) = &paths.icon_path {
-        write_text_file(icon_path, APP_ICON_SVG)?;
+        write_icon_asset(icon_path)?;
         created_files.push(icon_path.clone());
     }
 
@@ -114,6 +114,7 @@ pub fn install_application(
             &paths.install_dir,
             &paths.installed_binary,
             &paths.installed_uninstaller,
+            paths.icon_path.as_deref(),
             PACKAGE_VERSION,
             true,
         )
@@ -163,6 +164,7 @@ pub fn uninstall_application(
                     &paths.install_dir,
                     &paths.installed_binary,
                     &paths.installed_uninstaller,
+                    paths.icon_path.as_deref(),
                     &receipt.version,
                     false,
                 );
@@ -202,6 +204,27 @@ pub fn uninstall_application(
     Ok(())
 }
 
+/// Writes `root.ico` binary bytes when the path ends with `.ico`, or `APP_ICON_SVG` otherwise.
+fn write_icon_asset(icon_path: &Path) -> Result<(), InstallerError> {
+    if let Some(parent) = icon_path.parent() {
+        create_dir_checked(parent)?;
+    }
+
+    let is_ico = icon_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("ico"));
+
+    if is_ico {
+        let ico_bytes = crate::branding::build_app_ico_bytes();
+        fs::write(icon_path, ico_bytes).map_err(|err| {
+            InstallerError::IoError(format!("Failed to write '{}': {err}", icon_path.display()))
+        })
+    } else {
+        write_text_file(icon_path, APP_ICON_SVG)
+    }
+}
+
 fn install_windows_shortcuts(
     paths: &crate::installer::types::InstallPaths,
     created_files: &mut Vec<PathBuf>,
@@ -214,6 +237,7 @@ fn install_windows_shortcuts(
             shortcut_path,
             &paths.installed_binary,
             &paths.install_dir,
+            paths.icon_path.as_deref(),
             "Inspect software project trees and export code to Markdown",
         ) {
             created_files.push(shortcut_path.clone());

@@ -134,23 +134,52 @@ fn installs_and_uninstalls_macos_app_bundle_cleanly_in_temp_dir() {
 }
 
 #[test]
+fn installs_windows_layout_with_generated_ico_file_in_temp_dir() {
+    // Arrange
+    let temp = TempDir::new().unwrap();
+    let home_dir = temp.path().join("Users/Dev");
+    let source_bin = create_fake_source_binary(temp.path());
+    let install_dir = temp.path().join("Programs/root");
+
+    let options = InstallOptions {
+        install_dir: install_dir.clone(),
+        create_menu_shortcut: false,
+        create_desktop_shortcut: false,
+        install_cli_symlink: false,
+    };
+
+    // Act
+    let receipt = install_application(TargetOs::Windows, &home_dir, &source_bin, &options).unwrap();
+    let ico_path = install_dir.join("root.ico");
+    let ico_bytes = fs::read(&ico_path).unwrap();
+
+    // Assert: root.exe and root.ico exist, and root.ico begins with ICONDIR header [0, 0, 1, 0, 1, 0]
+    assert!(receipt.installed_binary.is_file());
+    assert!(ico_path.is_file());
+    assert_eq!(&ico_bytes[0..6], &[0, 0, 1, 0, 1, 0]);
+}
+
+#[test]
 fn formats_linux_desktop_macos_plist_and_windows_ps_script_correctly() {
+    // Arrange & Act
     let desktop = build_linux_desktop_entry(
         Path::new("/home/user/.local/bin/root"),
         Some(Path::new("/home/user/root.svg")),
     );
-    assert!(desktop.contains("Exec=\"/home/user/.local/bin/root\""));
-    assert!(desktop.contains("Icon=/home/user/root.svg"));
-
     let plist = build_macos_info_plist("0.1.0");
-    assert!(plist.contains("<string>com.root.desktop</string>"));
-    assert!(plist.contains("<string>0.1.0</string>"));
-
     let ps = build_windows_shortcut_ps_script(
         Path::new(r"C:\Users\O'Connor\Desktop\root.lnk"),
         Path::new(r"C:\Program Files\root\root.exe"),
         Path::new(r"C:\Program Files\root"),
+        Some(Path::new(r"C:\Program Files\root\root.ico")),
         "root app",
     );
+
+    // Assert
+    assert!(desktop.contains("Exec=\"/home/user/.local/bin/root\""));
+    assert!(desktop.contains("Icon=/home/user/root.svg"));
+    assert!(plist.contains("<string>com.root.desktop</string>"));
+    assert!(plist.contains("<string>0.1.0</string>"));
     assert!(ps.contains("O''Connor"));
+    assert!(ps.contains(r"root.ico,0"));
 }
