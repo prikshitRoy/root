@@ -24,10 +24,20 @@ It compiles into both a standalone portable desktop executable (`root`) that run
   - **Pure-Rust `🌿 root` Branding & Icons:** Automatically renders the `🌿 root` window/taskbar icon (`egui::IconData`), generates a 32-bit Windows `root.ico` file for `.lnk` shortcuts and the Windows Installed Apps registry, and writes `root.svg` on Linux/macOS.
 
 ---
-
 ## 🚀 Getting Started
 
-### Prerequisites
+### Download Prebuilt Installers & Executables
+
+Download the latest release for your OS from the [**GitHub Releases**](../../releases/latest) page (see [`RELEASING.md`](./RELEASING.md) for checksum verification and full details):
+
+| OS | Recommended Installer | Portable Executable / Archive |
+| :--- | :--- | :--- |
+| **Windows (x64)** | `root-setup-windows-x64.exe` (GUI/CLI Setup Wizard) | `root-windows-x64.exe` or `root-windows-x64.zip` |
+| **macOS (Apple Silicon)** | `root-macos-arm64.dmg` (Drag-and-drop Disk Image) | `root-macos-arm64.app.zip` or `root-macos-arm64.tar.gz` |
+| **macOS (Intel)** | `root-macos-x64.dmg` (Drag-and-drop Disk Image) | `root-macos-x64.app.zip` or `root-macos-x64.tar.gz` |
+| **Linux (x64)** | `root-linux-amd64.deb` (Ubuntu/Debian) or `root-installer-linux-x64` | `root-linux-x64.tar.gz` |
+
+### Prerequisites (Building from Source)
 
 - [Rust toolchain](https://rustup.rs/) (`rustc` and `cargo`, 2021 edition or newer)
 
