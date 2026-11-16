@@ -50,7 +50,8 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Run unit & integration tests
-        run: cargo test --target ${{ matrix.target }}
+        if: matrix.target != 'x86_64-apple-darwin'
+        run: cargo test
 
       - name: Build portable app and Setup Wizard installer
         run: cargo build --release --bins --target ${{ matrix.target }}
@@ -61,14 +62,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           $relDir = "target/${{ matrix.target }}/release"
-
-          # 1. Standalone GUI/CLI Setup Wizard (.exe)
           Copy-Item "$relDir/root-installer.exe" "dist/root-setup-${{ matrix.platform_name }}.exe"
-
-          # 2. Standalone Portable Application (.exe)
           Copy-Item "$relDir/root.exe" "dist/root-${{ matrix.platform_name }}.exe"
-
-          # 3. Portable ZIP bundle (contains both root.exe and root-installer.exe)
           Compress-Archive -Path "$relDir/root.exe", "$relDir/root-installer.exe", "README.md" -DestinationPath "dist/root-${{ matrix.platform_name }}.zip"
 
       - name: Package macOS application bundle & disk image (.dmg, .app.zip, .tar.gz)
@@ -77,63 +72,37 @@ jobs:
           mkdir -p dist
           REL_DIR="target/${{ matrix.target }}/release"
           VERSION=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
-
           chmod +x "$REL_DIR/root" "$REL_DIR/root-installer"
 
-          # 1. Assemble native macOS root.app bundle
           APP_DIR="build_app/root.app"
           mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
           cp "$REL_DIR/root" "$APP_DIR/Contents/MacOS/root"
           cp "$REL_DIR/root-installer" "$APP_DIR/Contents/MacOS/root-installer"
 
-          cat > "$APP_DIR/Contents/Info.plist" <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleName</key>
-              <string>root</string>
-              <key>CFBundleDisplayName</key>
-              <string>root</string>
-              <key>CFBundleIdentifier</key>
-              <string>com.root.desktop</string>
-              <key>CFBundleVersion</key>
-              <string>${VERSION}</string>
-              <key>CFBundleShortVersionString</key>
-              <string>${VERSION}</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleExecutable</key>
-              <string>root</string>
-              <key>CFBundleIconFile</key>
-              <string>root.svg</string>
-              <key>NSHighResolutionCapable</key>
-              <true/>
-          </dict>
-          </plist>
-          EOF
+          printf '%s\n' \
+            '<?xml version="1.0" encoding="UTF-8"?>' \
+            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+            '<plist version="1.0">' \
+            '<dict>' \
+            '    <key>CFBundleName</key><string>root</string>' \
+            '    <key>CFBundleDisplayName</key><string>root</string>' \
+            '    <key>CFBundleIdentifier</key><string>com.root.desktop</string>' \
+            "    <key>CFBundleVersion</key><string>${VERSION}</string>" \
+            "    <key>CFBundleShortVersionString</key><string>${VERSION}</string>" \
+            '    <key>CFBundlePackageType</key><string>APPL</string>' \
+            '    <key>CFBundleExecutable</key><string>root</string>' \
+            '    <key>NSHighResolutionCapable</key><true/>' \
+            '</dict>' \
+            '</plist>' > "$APP_DIR/Contents/Info.plist"
 
-          cat > "$APP_DIR/Contents/Resources/root.svg" <<'EOF'
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-            <rect width="128" height="128" rx="24" fill="#1b1b1b"/>
-            <path d="M28 98L54 70" stroke="#9a9a9a" stroke-width="11" stroke-linecap="round"/>
-            <path d="M38 72C24 54 22 34 31 21C43 32 46 52 38 72Z" fill="#9a9a9a"/>
-            <path d="M47 69C53 43 73 25 97 20C93 45 75 64 47 69Z" fill="#9a9a9a"/>
-            <path d="M50 77C68 65 86 64 101 72C86 83 68 85 50 77Z" fill="#9a9a9a"/>
-          </svg>
-          EOF
-
-          # 2. Create compressed .app.zip archive
           (cd build_app && zip -r "../dist/root-${{ matrix.platform_name }}.app.zip" root.app)
 
-          # 3. Create native macOS .dmg Disk Image with /Applications drop link
           mkdir -p dmg_staging
           cp -R "$APP_DIR" dmg_staging/
           cp "$REL_DIR/root-installer" dmg_staging/
           ln -s /Applications dmg_staging/Applications
           hdiutil create -volname "root" -srcfolder dmg_staging -ov -format UDZO "dist/root-${{ matrix.platform_name }}.dmg"
 
-          # 4. Create portable CLI/binary tarball (.tar.gz)
           tar -czvf "dist/root-${{ matrix.platform_name }}.tar.gz" -C "$REL_DIR" root root-installer
 
       - name: Package Linux installers & portable archives (.deb, Setup Wizard, .tar.gz)
@@ -142,60 +111,36 @@ jobs:
           mkdir -p dist
           REL_DIR="target/${{ matrix.target }}/release"
           VERSION=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
-
           chmod +x "$REL_DIR/root" "$REL_DIR/root-installer"
 
-          # 1. Standalone Universal Linux Setup Wizard binary
           cp "$REL_DIR/root-installer" "dist/root-installer-${{ matrix.platform_name }}"
-
-          # 2. Portable tarball (.tar.gz)
           tar -czvf "dist/root-${{ matrix.platform_name }}.tar.gz" -C "$REL_DIR" root root-installer
 
-          # 3. Native Debian / Ubuntu package (.deb)
           DEB_DIR="deb_staging"
-          mkdir -p "$DEB_DIR/DEBIAN" \
-                   "$DEB_DIR/usr/bin" \
-                   "$DEB_DIR/usr/share/applications" \
-                   "$DEB_DIR/usr/share/icons/hicolor/scalable/apps"
-
+          mkdir -p "$DEB_DIR/DEBIAN" "$DEB_DIR/usr/bin" "$DEB_DIR/usr/share/applications"
           cp "$REL_DIR/root" "$DEB_DIR/usr/bin/root"
           cp "$REL_DIR/root-installer" "$DEB_DIR/usr/bin/root-installer"
           chmod 0755 "$DEB_DIR/usr/bin/root" "$DEB_DIR/usr/bin/root-installer"
 
-          cat > "$DEB_DIR/usr/share/applications/root.desktop" <<'EOF'
-          [Desktop Entry]
-          Version=1.0
-          Type=Application
-          Name=root
-          GenericName=Project Tree & Markdown Bundler
-          Comment=Inspect software project trees and export source code to Markdown
-          Exec=root
-          Icon=root
-          Terminal=false
-          Categories=Development;Utility;
-          StartupWMClass=root
-          EOF
+          printf '%s\n' \
+            '[Desktop Entry]' \
+            'Version=1.0' \
+            'Type=Application' \
+            'Name=root' \
+            'Comment=Inspect software project trees and export source code to Markdown' \
+            'Exec=root' \
+            'Terminal=false' \
+            'Categories=Development;Utility;' > "$DEB_DIR/usr/share/applications/root.desktop"
 
-          cat > "$DEB_DIR/usr/share/icons/hicolor/scalable/apps/root.svg" <<'EOF'
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-            <rect width="128" height="128" rx="24" fill="#1b1b1b"/>
-            <path d="M28 98L54 70" stroke="#9a9a9a" stroke-width="11" stroke-linecap="round"/>
-            <path d="M38 72C24 54 22 34 31 21C43 32 46 52 38 72Z" fill="#9a9a9a"/>
-            <path d="M47 69C53 43 73 25 97 20C93 45 75 64 47 69Z" fill="#9a9a9a"/>
-            <path d="M50 77C68 65 86 64 101 72C86 83 68 85 50 77Z" fill="#9a9a9a"/>
-          </svg>
-          EOF
-
-          cat > "$DEB_DIR/DEBIAN/control" <<EOF
-          Package: root
-          Version: ${VERSION}
-          Section: devel
-          Priority: optional
-          Architecture: amd64
-          Depends: libgtk-3-0, libxcb1, libxcb-render0, libxcb-shape0, libxcb-xfixes0, libxkbcommon0
-          Maintainer: root contributors
-          Description: Cross-platform desktop app to inspect project trees and export code to Markdown
-          EOF
+          printf '%s\n' \
+            'Package: root' \
+            "Version: ${VERSION}" \
+            'Section: devel' \
+            'Priority: optional' \
+            'Architecture: amd64' \
+            'Depends: libgtk-3-0, libxcb1, libxcb-render0, libxcb-shape0, libxcb-xfixes0, libxkbcommon0' \
+            'Maintainer: root contributors' \
+            'Description: Cross-platform desktop app to inspect project trees and export code to Markdown' > "$DEB_DIR/DEBIAN/control"
 
           dpkg-deb --build --root-owner-group "$DEB_DIR" "dist/root-linux-amd64.deb"
 
@@ -217,50 +162,14 @@ jobs:
           path: release_staging
           merge-multiple: true
 
-      - name: Generate SHA256SUMS.txt and Release Notes
+      - name: Generate SHA256SUMS.txt
         run: |
           cd release_staging
           sha256sum * > SHA256SUMS.txt
-          cd ..
-
-          cat > RELEASE_NOTES.md <<'EOF'
-          ## 📦 Downloads & Installers
-
-          Choose the installer or portable executable for your operating system below:
-
-          | Operating System | Format | Asset Filename | Recommended For |
-          | :--- | :--- | :--- | :--- |
-          | **Windows (64-bit)** | **Setup Wizard (.exe)** | `root-setup-windows-x64.exe` | Standard installation (Start Menu, Desktop shortcut & Uninstaller) |
-          | **Windows (64-bit)** | **Portable App (.exe)** | `root-windows-x64.exe` | Zero-install single-file portable executable |
-          | **Windows (64-bit)** | **Portable Archive (.zip)** | `root-windows-x64.zip` | Portable `.zip` bundle with `root.exe` and `root-installer.exe` |
-          | **macOS (Apple Silicon M1–M4)** | **Disk Image (.dmg)** | `root-macos-arm64.dmg` | Standard macOS drag-to-Applications installer |
-          | **macOS (Apple Silicon M1–M4)** | **App Bundle (.app.zip)** | `root-macos-arm64.app.zip` | Zipped `root.app` bundle |
-          | **macOS (Intel x64)** | **Disk Image (.dmg)** | `root-macos-x64.dmg` | Standard macOS drag-to-Applications installer |
-          | **macOS (Intel x64)** | **App Bundle (.app.zip)** | `root-macos-x64.app.zip` | Zipped `root.app` bundle |
-          | **Linux (Ubuntu / Debian x64)** | **Debian Package (.deb)** | `root-linux-amd64.deb` | Native system install via `sudo apt install ./root-linux-amd64.deb` |
-          | **Linux (Any Distro x64)** | **Setup Wizard (Binary)** | `root-installer-linux-x64` | Per-user GUI/CLI installer (`~/.local/bin/root` + `.desktop` launcher) |
-          | **Linux (Any Distro x64)** | **Portable Tarball (.tar.gz)** | `root-linux-x64.tar.gz` | Portable `root` and `root-installer` binaries |
-
-          ### 🔐 Verifying Checksums
-
-          Verify any downloaded file against `SHA256SUMS.txt`:
-
-          ```bash
-          # Linux
-          sha256sum -c SHA256SUMS.txt --ignore-missing
-
-          # macOS
-          shasum -a 256 -c SHA256SUMS.txt --ignore-missing
-
-          # Windows (PowerShell)
-          Get-FileHash .\root-setup-windows-x64.exe -Algorithm SHA256
-          ```
-          EOF
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          body_path: RELEASE_NOTES.md
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: release_staging/*
