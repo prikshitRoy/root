@@ -2,28 +2,24 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-pub mod detector;
-pub mod markdown;
-pub mod scanner;
-pub mod selection;
-pub mod settings;
-pub mod ui;
+use std::env;
+use std::process;
 
-use eframe::egui;
-use ui::RootApp;
+use root::installer::{execute_cli_command, parse_cli_args, CliCommand};
 
-/// Launches the native desktop window with default configuration.
+/// Launches the native desktop window by default, or handles installer CLI flags if provided.
 fn main() -> eframe::Result<()> {
-    let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1024.0, 720.0])
-            .with_min_inner_size([640.0, 480.0]),
-        ..Default::default()
-    };
+    let args: Vec<String> = env::args().skip(1).collect();
 
-    eframe::run_native(
-        "root",
-        native_options,
-        Box::new(|_cc| Ok(Box::new(RootApp::default()))),
-    )
+    match parse_cli_args(&args) {
+        CliCommand::RunDefault => root::run_desktop_app(),
+        CliCommand::OpenInstallerGui => root::run_installer_app(),
+        cli_cmd => {
+            if let Err(err) = execute_cli_command(cli_cmd) {
+                eprintln!("Installer error: {err}");
+                process::exit(1);
+            }
+            Ok(())
+        }
+    }
 }

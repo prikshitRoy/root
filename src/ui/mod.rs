@@ -12,6 +12,8 @@ use std::path::PathBuf;
 
 use eframe::egui;
 
+pub use theme::apply_app_theme;
+
 use crate::detector::{detect_project_profile, ProjectKind, ProjectProfile};
 use crate::markdown::{build_markdown_document, spawn_export_job, ExportJobHandle, ExportState};
 use crate::scanner::{spawn_scan_job, FileNode, ScanJobHandle, ScanOptions, ScanState};
@@ -21,7 +23,7 @@ use loading_view::render_project_loading_view;
 use preview_pane::render_markdown_preview_panel;
 use project_banner::render_project_banner;
 use status_bar::render_bottom_status_bar;
-use theme::{apply_app_theme, step_zoom_in, step_zoom_out, DEFAULT_ZOOM_FACTOR};
+use theme::{step_zoom_in, step_zoom_out, DEFAULT_ZOOM_FACTOR};
 use toolbar::{render_top_toolbar, ToolbarAction, ToolbarState};
 use tree_view::render_project_tree;
 

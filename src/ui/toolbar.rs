@@ -92,6 +92,19 @@ fn render_primary_row(
         }
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // --- NEW: Install button on the right-hand side of the top toolbar ---
+            if ui
+                .button("📦 Install...")
+                .on_hover_text("Install root to your OS Applications / Start Menu")
+                .clicked()
+            {
+                if let Ok(exe) = std::env::current_exe() {
+                    let _ = std::process::Command::new(exe).arg("--installer").spawn();
+                }
+            }
+
+            ui.separator();
+
             let theme_label = if state.is_dark_mode {
                 "☀ Light"
             } else {

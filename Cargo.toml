@@ -3,6 +3,19 @@ name = "root"
 version = "0.1.0"
 edition = "2021"
 description = "Cross-platform desktop app to inspect project trees and export code to Markdown"
+default-run = "root"
+
+[lib]
+name = "root"
+path = "src/lib.rs"
+
+[[bin]]
+name = "root"
+path = "src/main.rs"
+
+[[bin]]
+name = "root-installer"
+path = "src/bin/root-installer.rs"
 
 [dependencies]
 eframe = "0.29"
@@ -14,3 +27,19 @@ toml = "0.8"
 
 [dev-dependencies]
 tempfile = "3.13"
+
+# Configuration for `cargo packager --release` (NSIS .exe, .msi, .dmg, .deb, .AppImage)
+[package.metadata.packager]
+product_name = "root"
+identifier = "com.root.desktop"
+before-packaging-command = "cargo build --release --bin root"
+binaries = [
+    { path = "root", main = true }
+]
+
+# Configuration for `cargo bundle --release` (.app, .deb, .msi)
+[package.metadata.bundle]
+name = "root"
+identifier = "com.root.desktop"
+short_description = "Inspect software project trees and export source code to Markdown"
+category = "Developer Tool"
