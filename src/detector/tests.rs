@@ -142,3 +142,44 @@ fn updates_active_kind_and_confirmation_flag_when_user_overrides_framework() {
     assert_eq!(profile.active_kind, ProjectKind::NextJs);
     assert!(profile.is_user_confirmed);
 }
+
+#[test]
+fn detects_wxt_from_wxt_config_file() {
+    // Arrange
+    let signals = ProjectSignals {
+        root_entry_names: vec![
+            "wxt.config.ts".to_string(),
+            "entrypoints".to_string(),
+            "package.json".to_string(),
+        ],
+        package_json_content: None,
+        cargo_toml_content: None,
+    };
+
+    // Act
+    let profile = detect_from_signals(&signals);
+
+    // Assert
+    assert_eq!(profile.detected_kind, ProjectKind::Wxt);
+    assert_eq!(profile.evidence, "Found 'wxt.config.ts' in project root");
+}
+
+#[test]
+fn detects_wxt_from_package_json_and_prioritizes_it_over_vite() {
+    // Arrange: WXT extension project that also lists vite in devDependencies
+    let signals = ProjectSignals {
+        root_entry_names: vec!["package.json".to_string()],
+        package_json_content: Some(
+            r#"{"name": "browser-ext", "devDependencies": {"wxt": "^0.19.0", "vite": "^5.4.0"}}"#
+                .to_string(),
+        ),
+        cargo_toml_content: None,
+    };
+
+    // Act
+    let profile = detect_from_signals(&signals);
+
+    // Assert
+    assert_eq!(profile.detected_kind, ProjectKind::Wxt);
+    assert_eq!(profile.evidence, "Found 'wxt' in package.json");
+}

@@ -7,6 +7,8 @@ pub enum ProjectKind {
     Tauri,
     /// Electron desktop application (`electron` dependency or builder config).
     Electron,
+    /// WXT universal web browser extension (`wxt.config.*` or `wxt` dependency).
+    Wxt,
     /// Next.js web application (`next.config.*` or `next` dependency).
     NextJs,
     /// Vite frontend application (`vite.config.*` or `vite` dependency).
@@ -24,6 +26,7 @@ impl ProjectKind {
     pub const ALL: &'static [ProjectKind] = &[
         ProjectKind::Tauri,
         ProjectKind::Electron,
+        ProjectKind::Wxt,
         ProjectKind::NextJs,
         ProjectKind::Vite,
         ProjectKind::RustCargo,
@@ -36,6 +39,7 @@ impl ProjectKind {
         match self {
             Self::Tauri => "Tauri",
             Self::Electron => "Electron",
+            Self::Wxt => "WXT (Browser Extension)",
             Self::NextJs => "Next.js",
             Self::Vite => "Vite",
             Self::RustCargo => "Rust (Cargo)",

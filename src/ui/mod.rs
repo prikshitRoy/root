@@ -380,7 +380,7 @@ impl RootApp {
                     ui.heading("🌿 Welcome to root");
                     ui.add_space(6.0);
                     ui.label(
-                        "Inspect software project trees (Next.js, Vite, Tauri, Electron, Rust)\n\
+                        "Inspect software project trees (Next.js, Vite, WXT, Tauri, Electron, Rust)\n\
                          respecting .gitignore & .ignore rules, and bundle source code into Markdown.",
                     );
                     ui.add_space(12.0);

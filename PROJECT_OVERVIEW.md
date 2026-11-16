@@ -56,7 +56,7 @@ Status key: **Done** | **In progress** | **Planned**
 
 | Feature                                                                                         | Status  |
 | ----------------------------------------------------------------------------------------------- | ------- |
-| Automatic detection for Next.js, Vite, Tauri, Electron, Node.js, and Rust/Cargo projects        | Done    |
+| Automatic detection for Next.js, Vite, WXT, Tauri, Electron, Node.js, and Rust/Cargo projects   | Done    |
 | Interactive UI banner to cross-check, confirm, or override the detected project type            | Done    |
 
 ### 4.4 Tree selection and Markdown export
@@ -112,7 +112,7 @@ src/
   detector/              # Framework fingerprinting and user cross-check state
     mod.rs               # Public detector API and safe root manifest reader
     types.rs             # ProjectKind, ProjectSignals, and ProjectProfile definitions
-    rules.rs             # Pure detection rules for Tauri, Electron, Next.js, Vite, Cargo, and Node.js
+    rules.rs             # Pure detection rules for Tauri, Electron, WXT, Next.js, Vite, Cargo, and Node.js
     tests.rs             # Unit tests for framework detection and user override state
   selection/             # Tree and file selection state for Markdown code inclusion
     mod.rs               # Public selection API re-exports

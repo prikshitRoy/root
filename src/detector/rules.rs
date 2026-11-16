@@ -34,6 +34,14 @@ const VITE_CONFIG_FILES: &[&str] = &[
     "vite.config.mts",
 ];
 
+/// Config filenames that identify a WXT universal browser extension project at the root.
+const WXT_CONFIG_FILES: &[&str] = &[
+    "wxt.config.ts",
+    "wxt.config.js",
+    "wxt.config.mjs",
+    "wxt.config.mts",
+];
+
 /// Evaluates `ProjectSignals` in priority order and returns an unconfirmed `ProjectProfile`.
 pub fn detect_from_signals(signals: &ProjectSignals) -> ProjectProfile {
     let parsed_pkg = signals
@@ -47,6 +55,11 @@ pub fn detect_from_signals(signals: &ProjectSignals) -> ProjectProfile {
 
     if let Some(evidence) = match_electron(&signals.root_entry_names, parsed_pkg.as_ref()) {
         return ProjectProfile::new(ProjectKind::Electron, evidence);
+    }
+
+    // Check WXT before Vite since WXT projects bundle Vite under the hood
+    if let Some(evidence) = match_wxt(&signals.root_entry_names, parsed_pkg.as_ref()) {
+        return ProjectProfile::new(ProjectKind::Wxt, evidence);
     }
 
     if let Some(evidence) = match_nextjs(&signals.root_entry_names, parsed_pkg.as_ref()) {
@@ -96,6 +109,19 @@ fn match_electron(root_entries: &[String], pkg_json: Option<&Value>) -> Option<S
 
     if has_npm_dependency(pkg_json, "electron") {
         return Some("Found 'electron' in package.json".to_string());
+    }
+
+    None
+}
+
+/// Checks for `wxt.config.*` files or the `wxt` dependency in `package.json`.
+fn match_wxt(root_entries: &[String], pkg_json: Option<&Value>) -> Option<String> {
+    if let Some(config) = find_matching_entry(root_entries, WXT_CONFIG_FILES) {
+        return Some(format!("Found '{config}' in project root"));
+    }
+
+    if has_npm_dependency(pkg_json, "wxt") {
+        return Some("Found 'wxt' in package.json".to_string());
     }
 
     None
