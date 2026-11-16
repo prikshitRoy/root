@@ -70,14 +70,14 @@ pub fn parse_cli_args(args: &[String]) -> CliCommand {
 
 /// Returns `true` when the current binary is named `root` (`root.exe`) rather than `root-installer`.
 pub fn is_invoked_as_installed_app(exe_path: Option<&Path>) -> bool {
-    let Some(path) = exe_path else {
+    let Some(path_str) = exe_path.and_then(|p| p.to_str()) else {
         return false;
     };
-    let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
-        return false;
-    };
+    // Split on both '/' and '\' so Windows paths are parsed identically on Unix test runners
+    let file_name = path_str.rsplit(['/', '\\']).next().unwrap_or(path_str);
+    let stem = Path::new(file_name).file_stem().and_then(|s| s.to_str());
 
-    stem.eq_ignore_ascii_case(APP_BINARY_STEM)
+    stem.is_some_and(|s| s.eq_ignore_ascii_case(APP_BINARY_STEM))
 }
 
 /// Executes a headless CLI install or uninstall command on the current OS.
