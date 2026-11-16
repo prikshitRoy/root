@@ -118,8 +118,17 @@ pub fn create_windows_lnk_shortcut(
             let _ = std::fs::create_dir_all(parent);
         }
 
+        // Remove existing .lnk first so Windows Explorer does not keep stale shortcut metadata
+        let _ = std::fs::remove_file(shortcut_lnk_path);
+
         let status = std::process::Command::new("powershell")
             .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .status();
+
+        // Notify Windows Shell to refresh cached shortcut icons immediately
+        let _ = std::process::Command::new("ie4uinit.exe")
+            .arg("-show")
             .creation_flags(CREATE_NO_WINDOW)
             .status();
 

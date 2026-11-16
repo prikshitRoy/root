@@ -150,7 +150,7 @@ fn installs_windows_layout_with_generated_ico_file_in_temp_dir() {
 
     // Act
     let receipt = install_application(TargetOs::Windows, &home_dir, &source_bin, &options).unwrap();
-    let ico_path = install_dir.join("root.ico");
+    let ico_path = install_dir.join("root-leaf.ico");
     let ico_bytes = fs::read(&ico_path).unwrap();
 
     // Assert: root.exe and root.ico exist, and root.ico begins with ICONDIR header [0, 0, 1, 0, 1, 0]

@@ -17,25 +17,22 @@ const ICO_DIRECTORY_HEADER_BYTES: u32 = 22;
 /// Size in bytes of the Windows `BITMAPINFOHEADER` structure.
 const DIB_HEADER_BYTES: u32 = 40;
 
-/// Dark charcoal squircle background color (`#181C24`).
-const BG_COLOR: [u8; 4] = [0x18, 0x1C, 0x24, 0xFF];
+/// Dark background color matching the `egui` header badge (`#1B1B1B`).
+const BG_COLOR: [u8; 4] = [0x1B, 0x1B, 0x1B, 0xFF];
 
-/// Primary bright mint leaf and stem color (`#4ADE80`).
-const LEAF_BRIGHT_COLOR: [u8; 4] = [0x4A, 0xDE, 0x80, 0xFF];
-
-/// Secondary emerald leaf and root node accent color (`#22C55E`).
-const LEAF_ACCENT_COLOR: [u8; 4] = [0x22, 0xC5, 0x5E, 0xFF];
+/// Soft monochrome leaf and stem fill color matching the `🌿` glyph (`#9A9A9A`).
+const LEAF_COLOR: [u8; 4] = [0x9A, 0x9A, 0x9A, 0xFF];
 
 /// Transparent pixel outside the rounded squircle badge.
 const TRANSPARENT_PIXEL: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
 
-/// Scalable vector (`root.svg`) representation of the `🌿 root` logo.
+/// Scalable vector (`root.svg`) representation of the simple 3-leaf `🌿` logo.
 pub const APP_ICON_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="28" fill="#181c24"/>
-  <path d="M64 102V46" stroke="#4ade80" stroke-width="10" stroke-linecap="round"/>
-  <path d="M64 90L44 106M64 90L84 106" stroke="#22c55e" stroke-width="8" stroke-linecap="round"/>
-  <path d="M64 62C64 42 86 30 98 34C98 52 82 64 64 62Z" fill="#4ade80"/>
-  <path d="M64 72C64 54 44 44 30 48C30 64 46 74 64 72Z" fill="#22c55e"/>
+  <rect width="128" height="128" rx="24" fill="#1b1b1b"/>
+  <path d="M28 98L54 70" stroke="#9a9a9a" stroke-width="11" stroke-linecap="round"/>
+  <path d="M38 72C24 54 22 34 31 21C43 32 46 52 38 72Z" fill="#9a9a9a"/>
+  <path d="M47 69C53 43 73 25 97 20C93 45 75 64 47 69Z" fill="#9a9a9a"/>
+  <path d="M50 77C68 65 86 64 101 72C86 83 68 85 50 77Z" fill="#9a9a9a"/>
 </svg>
 "##;
 
@@ -48,13 +45,13 @@ pub fn build_window_icon() -> egui::IconData {
     }
 }
 
-/// Builds a binary Windows `.ico` file containing the default `64x64` `🌿 root` icon.
+/// Builds a binary Windows `.ico` file containing the default `64x64` 3-leaf `root` icon.
 pub fn build_app_ico_bytes() -> Vec<u8> {
     let rgba = build_logo_rgba(DEFAULT_ICON_SIZE);
     encode_rgba_to_ico(DEFAULT_ICON_SIZE, DEFAULT_ICON_SIZE, &rgba).unwrap_or_default()
 }
 
-/// Rasterizes the `🌿 root` squircle badge and sprout emblem into a `size x size` RGBA buffer.
+/// Rasterizes the 3-leaf `🌿` badge into a `size x size` RGBA buffer.
 pub fn build_logo_rgba(size: u32) -> Vec<u8> {
     let safe_size = size.max(1);
     let mut rgba = Vec::with_capacity((safe_size * safe_size) as usize * BYTES_PER_PIXEL);
@@ -78,8 +75,8 @@ fn classify_logo_pixel(x: u32, y: u32, size: u32) -> [u8; 4] {
         return TRANSPARENT_PIXEL;
     }
 
-    if let Some(emblem_color) = sample_sprout_emblem(nx, ny) {
-        return emblem_color;
+    if is_inside_three_leaf_emblem(nx, ny) {
+        return LEAF_COLOR;
     }
 
     BG_COLOR
@@ -114,36 +111,64 @@ fn is_inside_rounded_box(nx: f32, ny: f32) -> bool {
     (dx * dx + dy * dy) <= (radius * radius)
 }
 
-/// Samples the `🌿` central stem, upper-right leaf, middle-left leaf, and lower root branches.
-fn sample_sprout_emblem(nx: f32, ny: f32) -> Option<[u8; 4]> {
-    // Upper-right tilted leaf ellipse
-    let rx = (nx - 0.63) * 0.8 + (ny - 0.37) * -0.6;
-    let ry = (nx - 0.63) * 0.6 + (ny - 0.37) * 0.8;
-    if (rx / 0.16).powi(2) + (ry / 0.09).powi(2) <= 1.0 {
-        return Some(LEAF_BRIGHT_COLOR);
+/// Returns `true` if `(nx, ny)` falls inside the diagonal stem or any of the 3 pointed leaves.
+fn is_inside_three_leaf_emblem(nx: f32, ny: f32) -> bool {
+    // 1. Short diagonal stem at bottom-left
+    let in_stem = is_inside_capsule(nx, ny, (0.22, 0.76), (0.41, 0.55), 0.042);
+
+    // 2. Top-left pointed leaf
+    let in_left_leaf = is_inside_pointed_leaf(nx, ny, (0.27, 0.37), -1.72, 0.21, 0.082);
+
+    // 3. Main center-right diagonal leaf
+    let in_main_leaf = is_inside_pointed_leaf(nx, ny, (0.56, 0.35), -0.785, 0.27, 0.105);
+
+    // 4. Lower-right horizontal leaf
+    let in_right_leaf = is_inside_pointed_leaf(nx, ny, (0.58, 0.58), -0.10, 0.20, 0.082);
+
+    in_stem || in_left_leaf || in_main_leaf || in_right_leaf
+}
+
+/// Checks whether `(px, py)` lies within a rotated lenticular (pointed-tip) leaf shape.
+fn is_inside_pointed_leaf(
+    px: f32,
+    py: f32,
+    center: (f32, f32),
+    angle_rad: f32,
+    half_length: f32,
+    max_half_width: f32,
+) -> bool {
+    let dx = px - center.0;
+    let dy = py - center.1;
+    let (sin_a, cos_a) = angle_rad.sin_cos();
+
+    let along_axis = dx * cos_a + dy * sin_a;
+    let across_axis = -dx * sin_a + dy * cos_a;
+
+    let normalized_pos = (along_axis / half_length).abs();
+    if normalized_pos > 1.0 {
+        return false;
     }
 
-    // Middle-left tilted leaf ellipse
-    let lx = (nx - 0.37) * 0.8 + (ny - 0.47) * 0.6;
-    let ly = (nx - 0.37) * -0.6 + (ny - 0.47) * 0.8;
-    if (lx / 0.16).powi(2) + (ly / 0.09).powi(2) <= 1.0 {
-        return Some(LEAF_ACCENT_COLOR);
-    }
+    let allowed_half_width = max_half_width * (1.0 - normalized_pos * normalized_pos);
+    across_axis.abs() <= allowed_half_width
+}
 
-    // Central vertical stem
-    if (nx - 0.50).abs() <= 0.042 && (0.34..=0.78).contains(&ny) {
-        return Some(LEAF_BRIGHT_COLOR);
-    }
+/// Checks whether `(px, py)` is within `radius` distance of line segment `start -> end`.
+fn is_inside_capsule(px: f32, py: f32, start: (f32, f32), end: (f32, f32), radius: f32) -> bool {
+    let vx = end.0 - start.0;
+    let vy = end.1 - start.1;
+    let len_sq = vx * vx + vy * vy;
+    let t = if len_sq > 0.0 {
+        (((px - start.0) * vx + (py - start.1) * vy) / len_sq).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
 
-    // Bottom forked root branches
-    if (0.68..=0.84).contains(&ny) {
-        let spread = (ny - 0.68) * 0.85;
-        if ((nx - 0.50).abs() - spread).abs() <= 0.045 {
-            return Some(LEAF_ACCENT_COLOR);
-        }
-    }
+    let closest_x = start.0 + t * vx;
+    let closest_y = start.1 + t * vy;
+    let dist_sq = (px - closest_x).powi(2) + (py - closest_y).powi(2);
 
-    None
+    dist_sq <= radius * radius
 }
 
 /// Encodes a top-down RGBA pixel slice into a valid 32-bit Windows `.ico` binary buffer.

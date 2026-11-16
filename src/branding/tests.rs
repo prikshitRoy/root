@@ -20,24 +20,25 @@ fn builds_window_icon_with_expected_dimensions_and_rgba_buffer_length() {
 }
 
 #[test]
-fn renders_transparent_corners_and_green_sprout_stem_at_center() {
+fn renders_transparent_corners_and_three_leaf_glyph_pixels() {
     // Arrange
     let size = 64;
 
     // Act
     let rgba = build_logo_rgba(size);
     let top_left_alpha = rgba[3];
-    let center_index = ((32 * size + 32) * 4) as usize;
-    let center_pixel = [
-        rgba[center_index],
-        rgba[center_index + 1],
-        rgba[center_index + 2],
-        rgba[center_index + 3],
+    // Pixel (35, 22) sits at the center of the main diagonal leaf (0.56, 0.35)
+    let leaf_index = ((22 * size + 35) * 4) as usize;
+    let leaf_pixel = [
+        rgba[leaf_index],
+        rgba[leaf_index + 1],
+        rgba[leaf_index + 2],
+        rgba[leaf_index + 3],
     ];
 
-    // Assert: outside the rounded corner is transparent; center stem is bright mint green
+    // Assert: outside the rounded corner is transparent; main leaf pixel is #9A9A9A
     assert_eq!(top_left_alpha, 0);
-    assert_eq!(center_pixel, [0x4A, 0xDE, 0x80, 0xFF]);
+    assert_eq!(leaf_pixel, [0x9A, 0x9A, 0x9A, 0xFF]);
 }
 
 #[test]
