@@ -1,5 +1,7 @@
 //! Entry point for the `root` desktop application.
 
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 pub mod detector;
 pub mod markdown;
 pub mod scanner;
