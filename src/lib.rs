@@ -11,7 +11,7 @@ pub mod ui;
 
 use std::sync::Arc;
 
-use branding::{build_window_icon, APP_DISPLAY_TITLE, INSTALLER_WINDOW_TITLE};
+use branding::{build_window_icon, APP_DISPLAY_TITLE, APP_NAME, INSTALLER_WINDOW_TITLE};
 use eframe::egui;
 use installer::ui::InstallerApp;
 use ui::RootApp;
@@ -20,6 +20,7 @@ use ui::RootApp;
 pub fn run_desktop_app() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
+            .with_app_id(APP_NAME)
             .with_title(APP_DISPLAY_TITLE)
             .with_inner_size([1024.0, 720.0])
             .with_min_inner_size([640.0, 480.0])
@@ -38,6 +39,7 @@ pub fn run_desktop_app() -> eframe::Result<()> {
 pub fn run_installer_app() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
+            .with_app_id(APP_NAME)
             .with_title(INSTALLER_WINDOW_TITLE)
             .with_inner_size([620.0, 540.0])
             .with_min_inner_size([520.0, 460.0])
