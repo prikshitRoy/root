@@ -117,10 +117,11 @@ jobs:
           tar -czvf "dist/root-${{ matrix.platform_name }}.tar.gz" -C "$REL_DIR" root root-installer
 
           DEB_DIR="deb_staging"
-          mkdir -p "$DEB_DIR/DEBIAN" "$DEB_DIR/usr/bin" "$DEB_DIR/usr/share/applications"
+          mkdir -p "$DEB_DIR/DEBIAN" "$DEB_DIR/usr/bin" "$DEB_DIR/usr/share/applications" "$DEB_DIR/usr/share/icons/hicolor/scalable/apps"
           cp "$REL_DIR/root" "$DEB_DIR/usr/bin/root"
           cp "$REL_DIR/root-installer" "$DEB_DIR/usr/bin/root-installer"
           chmod 0755 "$DEB_DIR/usr/bin/root" "$DEB_DIR/usr/bin/root-installer"
+          install -m 0644 assets/root.svg "$DEB_DIR/usr/share/icons/hicolor/scalable/apps/root.svg"
 
           printf '%s\n' \
             '[Desktop Entry]' \
@@ -129,6 +130,8 @@ jobs:
             'Name=root' \
             'Comment=Inspect software project trees and export source code to Markdown' \
             'Exec=root' \
+            'Icon=root' \
+            'StartupWMClass=root' \
             'Terminal=false' \
             'Categories=Development;Utility;' > "$DEB_DIR/usr/share/applications/root.desktop"
 
