@@ -206,6 +206,15 @@ cargo build -r --bins              # build optimized Windows release binaries (r
 .\target\release\root-installer.exe --uninstall
 ```
 
+## 8. Version History
+
+> Newest on top.
+
+- **v0.1.1** (2026-11-25) — fixed Windows Installed apps logo/uninstall entry, Linux launcher icon (`.deb` icon, SVG size, cache refresh, `app_id`).
+- **v0.1.0** — first multi-OS release (Windows, macOS, Linux).
+
+---
+
 ## How to Keep This File Updated (Instructions for AI)
 
 **How to deliver the update to me:**

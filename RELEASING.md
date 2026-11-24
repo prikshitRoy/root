@@ -112,3 +112,10 @@ Follow these steps to publish a new version of `root`:
 5. **Verify the GitHub Actions Pipeline:**
    - Open the **Actions** tab on GitHub and monitor the **Release Cross-Platform Installers** workflow.
    - Once all 4 matrix targets (`windows-x64`, `macos-arm64`, `macos-x64`, `linux-x64`) pass `cargo test` and package their installers, the `publish-release` job will automatically create the public GitHub Release with `SHA256SUMS.txt` and the download table.
+
+## 5. Release History
+
+| Version | Date | Notes |
+| ------- | ---- | ----- |
+| v0.1.1 | 2026-11-25 | Windows Installed apps logo and uninstall fixes; Linux launcher icon fixes. |
+| v0.1.0 | - | First multi-OS release. |
