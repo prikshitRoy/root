@@ -1,6 +1,7 @@
 //! Cross-platform installer and uninstaller engine, OS shortcut generators, and Setup UI.
 
 mod engine;
+mod os_refresh;
 mod paths;
 mod shortcuts;
 mod types;
@@ -8,6 +9,8 @@ pub mod ui;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod windows_uninstall_tests;
 
 use std::path::{Path, PathBuf};
 
@@ -16,7 +19,8 @@ pub use engine::{
 };
 pub use paths::{default_install_dir_for_os, resolve_install_paths, resolve_os_home_dir};
 pub use shortcuts::{
-    build_linux_desktop_entry, build_macos_info_plist, build_windows_shortcut_ps_script,
+    build_linux_desktop_entry, build_macos_info_plist, build_windows_display_icon,
+    build_windows_shortcut_ps_script, build_windows_uninstall_command,
 };
 pub use types::{
     CliCommand, InstallOptions, InstallPaths, InstallReceipt, InstallStatus, InstallerError,

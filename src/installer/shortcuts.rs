@@ -142,6 +142,21 @@ pub fn create_windows_lnk_shortcut(
     }
 }
 
+/// Builds the `UninstallString` Windows runs from Settings → Installed apps.
+/// Passes `--dir` so a custom install location is uninstalled instead of the default one.
+pub fn build_windows_uninstall_command(installed_uninstaller: &Path, install_dir: &Path) -> String {
+    format!(
+        "\"{}\" --uninstall --dir \"{}\"",
+        installed_uninstaller.display(),
+        install_dir.display()
+    )
+}
+
+/// Builds the `DisplayIcon` value (`<path>,0`), the documented `path,index` form Windows Settings reads.
+pub fn build_windows_display_icon(icon_source: &Path) -> String {
+    format!("{},0", icon_source.display())
+}
+
 /// Registers or removes the per-user Windows Uninstall Registry entry (`HKCU\...\Uninstall\root`).
 pub fn update_windows_uninstall_registry(
     install_dir: &Path,
@@ -165,14 +180,14 @@ pub fn update_windows_uninstall_registry(
                 .is_ok_and(|s| s.success());
         }
 
-        let display_icon = icon_path.unwrap_or(installed_binary);
-        let uninstall_cmd = format!("\"{}\" --uninstall", installed_uninstaller.display());
+        let display_icon = build_windows_display_icon(icon_path.unwrap_or(installed_binary));
+        let uninstall_cmd = build_windows_uninstall_command(installed_uninstaller, install_dir);
         let entries: &[(&str, &str, &str)] = &[
             ("DisplayName", "REG_SZ", "root"),
             ("DisplayVersion", "REG_SZ", version),
             ("Publisher", "REG_SZ", "root"),
             ("InstallLocation", "REG_SZ", &install_dir.to_string_lossy()),
-            ("DisplayIcon", "REG_SZ", &display_icon.to_string_lossy()),
+            ("DisplayIcon", "REG_SZ", &display_icon),
             ("UninstallString", "REG_SZ", &uninstall_cmd),
             ("NoModify", "REG_DWORD", "1"),
             ("NoRepair", "REG_DWORD", "1"),

@@ -3,13 +3,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::installer::os_refresh::{refresh_launcher_caches, schedule_windows_self_delete};
 use crate::installer::paths::resolve_install_paths;
 use crate::installer::shortcuts::{
     build_linux_desktop_entry, build_macos_desktop_command, build_macos_info_plist,
     create_windows_lnk_shortcut, update_windows_uninstall_registry, APP_ICON_SVG,
 };
 use crate::installer::types::{
-    InstallOptions, InstallReceipt, InstallStatus, InstallerError, TargetOs,
+    InstallOptions, InstallPaths, InstallReceipt, InstallStatus, InstallerError, TargetOs,
 };
 
 /// Current package version embedded from `Cargo.toml`.
@@ -134,6 +135,7 @@ pub fn install_application(
     let receipt_toml = toml::to_string_pretty(&receipt)
         .map_err(|err| InstallerError::ReceiptError(err.to_string()))?;
     write_text_file(&paths.receipt_file, &receipt_toml)?;
+    refresh_launcher_caches(target_os, &paths);
 
     Ok(receipt)
 }
@@ -159,21 +161,14 @@ pub fn uninstall_application(
             }
             let _ = fs::remove_file(&paths.receipt_file);
 
-            if receipt.registered_windows_uninstall {
-                update_windows_uninstall_registry(
-                    &paths.install_dir,
-                    &paths.installed_binary,
-                    &paths.installed_uninstaller,
-                    paths.icon_path.as_deref(),
-                    &receipt.version,
-                    false,
-                );
-            }
+            remove_windows_uninstall_entry(target_os, &paths, &receipt.version);
 
             for dir in receipt.created_dirs.iter().rev() {
                 let _ = fs::remove_dir_all(dir);
             }
             let _ = fs::remove_dir(&paths.install_dir);
+            refresh_launcher_caches(target_os, &paths);
+            schedule_windows_self_delete(&paths);
             return Ok(());
         }
     }
@@ -194,14 +189,34 @@ pub fn uninstall_application(
         let _ = fs::remove_file(candidate);
     }
 
+    // Without a receipt the Apps & features entry would otherwise survive and point at nothing
+    remove_windows_uninstall_entry(target_os, &paths, PACKAGE_VERSION);
+
     if target_os == TargetOs::MacOs {
         let app_bundle = install_dir.join("root.app");
         let _ = fs::remove_dir_all(app_bundle);
     } else {
         let _ = fs::remove_dir(install_dir);
     }
+    refresh_launcher_caches(target_os, &paths);
+    schedule_windows_self_delete(&paths);
 
     Ok(())
+}
+
+/// Deletes the Windows "Installed apps" Registry entry; a no-op on other operating systems.
+fn remove_windows_uninstall_entry(target_os: TargetOs, paths: &InstallPaths, version: &str) {
+    if target_os != TargetOs::Windows {
+        return;
+    }
+    update_windows_uninstall_registry(
+        &paths.install_dir,
+        &paths.installed_binary,
+        &paths.installed_uninstaller,
+        paths.icon_path.as_deref(),
+        version,
+        false,
+    );
 }
 
 /// Writes `root.ico` binary bytes when the path ends with `.ico`, or `APP_ICON_SVG` otherwise.
