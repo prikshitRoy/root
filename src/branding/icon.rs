@@ -26,15 +26,8 @@ const LEAF_COLOR: [u8; 4] = [0x9A, 0x9A, 0x9A, 0xFF];
 /// Transparent pixel outside the rounded squircle badge.
 const TRANSPARENT_PIXEL: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
 
-/// Scalable vector (`root.svg`) representation of the simple 3-leaf `🌿` logo.
-pub const APP_ICON_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="24" fill="#1b1b1b"/>
-  <path d="M28 98L54 70" stroke="#9a9a9a" stroke-width="11" stroke-linecap="round"/>
-  <path d="M38 72C24 54 22 34 31 21C43 32 46 52 38 72Z" fill="#9a9a9a"/>
-  <path d="M47 69C53 43 73 25 97 20C93 45 75 64 47 69Z" fill="#9a9a9a"/>
-  <path d="M50 77C68 65 86 64 101 72C86 83 68 85 50 77Z" fill="#9a9a9a"/>
-</svg>
-"##;
+/// Scalable vector (`root.svg`) logo, shared with the `.deb` package via `assets/root.svg`.
+pub const APP_ICON_SVG: &str = include_str!("../../assets/root.svg");
 
 /// Builds the native `egui::IconData` for the `root` and `root-installer` window titlebars and taskbar.
 pub fn build_window_icon() -> egui::IconData {
