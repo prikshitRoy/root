@@ -1,6 +1,6 @@
 [package]
 name = "root"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Cross-platform desktop app to inspect project trees and export code to Markdown"
 default-run = "root"
