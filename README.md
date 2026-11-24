@@ -21,7 +21,7 @@ It compiles into both a standalone portable desktop executable (`root`) that run
 - **Persistent UI Theme & Zoom:** Switch between **Dark** and **Light** mode and scale the interface from **70% to 200%** (`settings.toml` is automatically saved in your OS config folder).
 - **Built-In Setup Wizard & Uninstaller (`root-installer`):**
   - **Graphical & CLI Modes:** Launch via `root-installer`, the `📦 Install...` button in the app toolbar, or headless CLI flags (`--install`, `--uninstall`, `--dir`).
-  - **Pure-Rust `🌿 root` Branding & Icons:** Automatically renders the `🌿 root` window/taskbar icon (`egui::IconData`), generates a 32-bit Windows `root.ico` file for `.lnk` shortcuts and the Windows Installed Apps registry, and writes `root.svg` on Linux/macOS.
+  - **Pure-Rust `🌿 root` Branding & Icons:** Automatically renders the `🌿 root` window/taskbar icon (`egui::IconData`), generates a 32-bit Windows `root.ico` file for `.lnk` shortcuts and the Windows Installed Apps registry, and writes `root.svg` on Linux/macOS. Windows Settings → Installed apps shows the logo and can uninstall oot, including custom install folders.
 
 ---
 ## 🚀 Getting Started

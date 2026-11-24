@@ -95,6 +95,8 @@ Status key: **Done** | **In progress** | **Planned**
 | Pure-Rust Windows `root.ico` generator bound to Start Menu/Desktop `.lnk` `IconLocation` and Registry `DisplayIcon` | Done |
 | Windows installer workflow (`%LOCALAPPDATA%\Programs\root`, Start Menu & Desktop `.lnk` shortcuts, `HKCU` Uninstall Registry entry) | Done |
 | Cross-platform installer support for macOS (`~/Applications/root.app` bundle) and Linux (`.desktop` & SVG icon) | Done |
+| Windows Settings → Installed apps entry: DisplayIcon (oot-leaf.ico,0), UninstallString with --dir, entry removed even without a receipt, uninstaller self-deletes after exit | Done |
+| Linux launcher icon: .desktop Icon= plus XDG SVG (ssets/root.svg), icon/desktop cache refresh, .deb ships icon, window pp_id = oot | Done (CI-built; not yet verified on a real Linux desktop) |
 | Single-file fallback allowing `root-installer.exe` to install itself as `root.exe` when distributed standalone | Done |
 | TOML installation receipt (`install-receipt.toml`) tracking all created files and folders for clean removal | Done |
 | Automated GitHub Actions release pipeline (`.github/workflows/release.yml`) building Windows (`.exe`, `.zip`), macOS arm64 & x64 (`.dmg`, `.app.zip`, `.tar.gz`), and Linux x64 (`.deb`, Setup Wizard, `.tar.gz`) with `SHA256SUMS.txt` | Done |
@@ -110,13 +112,16 @@ Status key: **Done** | **In progress** | **Planned**
 
 > Verify these against the current code; remove an item when it is fixed.
 
-- None currently open. All cross-platform release targets (`windows-x64`, `macos-arm64`, `macos-x64`, `linux-x64`) build, pass tests, and publish via GitHub Actions.
+- Linux launcher-icon fix (explicit SVG size, cache refresh, .deb icon, pp_id) is covered by unit tests only; confirm on a real Ubuntu desktop after installing the next release.
+- None other open. All cross-platform release targets (`windows-x64`, `macos-arm64`, `macos-x64`, `linux-x64`) build, pass tests, and publish via GitHub Actions.
 
 ## 6. Project Structure
 
 ```text
 .github/workflows/
   release.yml            # CI/CD matrix workflow building and publishing multi-OS installers to GitHub Releases
+assets/
+  root.svg                # Shared SVG logo used by the installer (APP_ICON_SVG) and the Linux .deb.
 Cargo.toml               # Rust package manifest, dual [[bin]] targets, and bundler metadata
 README.md                # User and developer documentation
 RELEASING.md             # Release & distribution guide, checksum verification, and maintainer checklist
@@ -133,6 +138,8 @@ src/
   installer/             # Cross-platform GUI/CLI installer, shortcut generators, and uninstaller
     mod.rs               # Public installer API and CLI argument parser (`--install`, `--uninstall`)
     types.rs             # TargetOs, InstallOptions, InstallPaths, InstallReceipt, and InstallerError
+    os_refresh.rs        # Best-effort Linux icon/desktop cache refresh and Windows uninstaller self-deletion
+    windows_uninstall_tests.rs # Regression tests for Windows uninstall command, display icon, and SVG size
     paths.rs             # Per-OS path resolution (Windows AppData/Start Menu/root.ico, macOS .app, Linux XDG)
     shortcuts.rs         # Generators for Windows `.lnk` PowerShell scripts, Registry keys, `.desktop`, and `Info.plist`
     engine.rs            # File/icon installation, permission handling, receipt writing, and uninstallation logic
